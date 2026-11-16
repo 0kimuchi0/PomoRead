@@ -112,6 +112,9 @@ workflows:
     environment:
       android_signing:
         - keystore_reference
+      # VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY / VITE_GOOGLE_SERVER_CLIENT_ID は ios グループに登録
+      groups:
+        - ios
       vars:
         PACKAGE_NAME: com.readingpomodoro.app
       node: latest
