@@ -155,10 +155,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!iOSClientId) {
           return 'Google ログインが設定されていません'
         }
+        // Supabase は生の nonce を SHA-256 して ID トークン内の nonce と照合する
+        const rawNonce = generateRawNonce()
+        const hashedNonce = await sha256(rawNonce)
         const { SocialLogin } = await import('@capgo/capacitor-social-login')
         const { result } = await SocialLogin.login({
           provider: 'google',
-          options: { scopes: ['email', 'profile'] },
+          options: { scopes: ['email', 'profile'], nonce: hashedNonce },
         })
         if (result.responseType !== 'online') return 'Google ログインに失敗しました'
         const { idToken } = result
@@ -166,6 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { error } = await supabase.auth.signInWithIdToken({
           provider: 'google',
           token: idToken,
+          nonce: rawNonce,
         })
         return error?.message ?? null
       } else {

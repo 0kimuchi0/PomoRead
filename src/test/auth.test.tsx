@@ -188,11 +188,15 @@ describe('signInWithGoogle (native)', () => {
     })
 
     expect(mocks.socialLoginLogin).toHaveBeenCalledWith(
-      expect.objectContaining({ provider: 'google' })
+      expect.objectContaining({
+        provider: 'google',
+        options: expect.objectContaining({ nonce: expect.stringMatching(/^[0-9a-f]{64}$/) }),
+      })
     )
     expect(mocks.supabaseSignInWithIdToken).toHaveBeenCalledWith({
       provider: 'google',
       token: 'google-id-token-123',
+      nonce: expect.stringMatching(/^[0-9a-f]{32}$/),
     })
     expect(error).toBeNull()
   })
