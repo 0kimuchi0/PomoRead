@@ -143,3 +143,39 @@ workflows:
       google_play:
         credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
         track: internal
+
+  # Google Play に送らず、署名済み AAB だけを作る（初回の手動アップロード用）。Codemagic から手動で実行する
+  android-build:
+    name: Android Build (アップロードなし)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      android_signing:
+        - keystore_reference
+      # VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY / VITE_GOOGLE_SERVER_CLIENT_ID は ios グループに登録
+      groups:
+        - ios
+      vars:
+        PACKAGE_NAME: com.readingpomodoro.app
+      node: latest
+    scripts:
+      - name: Install dependencies
+        script: npm install
+      - name: Build web app
+        script: npm run build
+      - name: Sync Capacitor
+        script: npx cap sync android
+      - name: Build Android
+        script: |
+          cd android
+          ./gradlew bundleRelease
+      - name: Sign AAB
+        script: |
+          android-app-bundle sign \
+            --ks $CM_KEYSTORE_PATH \
+            --ks-pass $CM_KEYSTORE_PASSWORD \
+            --ks-key-alias $CM_KEY_ALIAS \
+            --key-pass $CM_KEY_PASSWORD
+    artifacts:
+      - android/app/build/outputs/**/*.aab
+      - android/app/build/outputs/**/*.apk
