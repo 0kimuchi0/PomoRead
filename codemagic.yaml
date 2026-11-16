@@ -16,6 +16,9 @@ workflows:
       node: latest
       groups:
         - ios
+      vars:
+        # 公開値（Info.plist の GIDClientID と同じ iOS OAuth クライアント ID）
+        VITE_GOOGLE_CLIENT_ID: 377241006434-b9o4mqdco3ar5mhf25annv9dvvh0d212.apps.googleusercontent.com
     scripts:
       - name: Install dependencies
         script: |
