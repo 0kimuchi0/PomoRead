@@ -46,9 +46,18 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           mkdir -p backup
-          supabase db dump --remote="$PROJECT_REF" --role-only -f backup/roles.sql
-          supabase db dump --remote="$PROJECT_REF" -f backup/schema.sql
-          supabase db dump --remote="$PROJECT_REF" --data-only --use-copy -f backup/data.sql
+          supabase link --project-ref "$PROJECT_REF"
+          # CLI が作る一時ログインロールは接続プールへの反映に少し時間がかかることがあるため、失敗したら待って再試行する
+          dump() {
+            for i in 1 2 3 4; do
+              supabase db dump --linked "$@" && return 0
+              echo "retrying in 20s..."; sleep 20
+            done
+            return 1
+          }
+          dump -f backup/schema.sql
+          dump --data-only --use-copy -f backup/data.sql
+          dump --role-only -f backup/roles.sql
           ls -l backup
           # 空のダンプを「成功」として保存しないようにする
           test -s backup/schema.sql
