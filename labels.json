@@ -60,6 +60,13 @@
         { "name": "help wanted", "color": "008672", "description": "協力・対応者を募集中" },
         { "name": "good first issue", "color": "7057ff", "description": "初心者向けの取り組みやすいIssue" }
       ]
+    },
+    {
+      "category": "Dependabot",
+      "labels": [
+        { "name": "dependencies", "color": "0366d6", "description": "依存パッケージの更新（Dependabot が使用）" },
+        { "name": "javascript", "color": "168700", "description": "JavaScript の依存パッケージ（Dependabot が使用）" }
+      ]
     }
   ],
   "metadata": {
