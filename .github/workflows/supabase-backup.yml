@@ -59,8 +59,10 @@ jobs:
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
         run: |
           tar -czf backup.tar.gz -C backup .
-          echo "$BACKUP_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
-            --symmetric --cipher-algo AES256 --output backup.tar.gz.gpg backup.tar.gz
+          # パスフレーズはコマンドライン引数や echo を使わず、ファイル記述子 3 から渡す
+          gpg --batch --yes --pinentry-mode loopback --passphrase-fd 3 \
+            --symmetric --cipher-algo AES256 --output backup.tar.gz.gpg backup.tar.gz \
+            3<<<"$BACKUP_PASSPHRASE"
           # 平文は Artifact に含めない
           rm -rf backup backup.tar.gz
           echo "DATE=$(date -u +%Y%m%d)" >> "$GITHUB_ENV"
