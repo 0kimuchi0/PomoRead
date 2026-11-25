@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { IconShield, IconUser, IconBan, IconRefresh, IconChartBar, IconBook, IconHistory, IconArrowBackUp, IconBookmark, IconPlus, IconTrash, IconPencil, IconDeviceFloppy, IconX, IconSearch, IconQuestionMark, IconMessage } from '@tabler/icons-react'
-import { getAllProfiles, updateUserRole, updateUserBanned, getAllBooksAdmin, getAllSessionsAdmin, logAdminAction, getAdminActions, revertAdminAction, getSuggestBooks, addSuggestBook, updateSuggestBook, deleteSuggestBook, getFeedbackList, updateFeedbackStatus } from '../lib/db'
+import { IconShield, IconUser, IconBan, IconRefresh, IconChartBar, IconBook, IconHistory, IconArrowBackUp, IconBookmark, IconPlus, IconTrash, IconPencil, IconDeviceFloppy, IconX, IconSearch, IconQuestionMark, IconMessage, IconCheck, IconEyeOff } from '@tabler/icons-react'
+import { getAllProfiles, updateUserRole, updateUserBanned, getAllBooksAdmin, getAllSessionsAdmin, logAdminAction, getAdminActions, revertAdminAction, getSuggestBooks, addSuggestBook, updateSuggestBook, updateSuggestStatus, deleteSuggestBook, getFeedbackList, updateFeedbackStatus } from '../lib/db'
 import { validateBookFields, hasErrors, formatCcode } from '../lib/validate'
 import { formatAuthor } from '../lib/format'
 import type { FieldErrors } from '../lib/validate'
 import { setAdminBooksCache, SUGGEST_BOOKS } from '../suggestBooks'
-import type { Profile, UserRole, Book, Session, SuggestBookDB, Feedback, FeedbackStatus } from '../types'
+import { useAuth } from '../auth/AuthContext'
+import type { Profile, UserRole, Book, Session, SuggestBookDB, SuggestStatus, Feedback, FeedbackStatus } from '../types'
 import type { AdminAction } from '../types'
 import ConfirmDialog from './ConfirmDialog'
 import HelpModal from './HelpModal'
@@ -30,7 +31,7 @@ const ADMIN_HELP: HelpItem[] = [
     icon: <IconBookmark size={18} />,
     title: 'サジェスト管理',
     desc: '全ユーザーの検索候補に表示される本を追加・インライン編集・削除できます',
-    detail: '管理者が追加したサジェストは全ユーザーのタイトル入力候補として表示されます。タイトル・著者・出版社・ジャンル・ページ数・ISBN・Cコード・NDC・整理番号を登録できます。検索バーで絞り込み、各行の「編集」ボタンでインライン編集が可能です。サジェストの追加・編集・削除は操作履歴には記録されません。',
+    detail: '管理者が追加したサジェストは全ユーザーのタイトル入力候補として表示されます。タイトル・著者・出版社・ジャンル・ページ数・ISBN・Cコード・NDC・整理番号を登録できます。検索バーで絞り込み、各行の「編集」ボタンでインライン編集が可能です。ユーザーが本棚に登録した本は「承認待ち」として追加され、登録した本人にだけ候補に表示されます。「承認」すると全ユーザーに公開され、「非表示」にするとだれの候補にも出なくなります。各サジェストには登録日時と登録者が表示されます。サジェストの追加・編集・削除は操作履歴には記録されません。',
     image: <img src="/help/admin-suggest.svg" width="280" height="160" alt="" />,
   },
   {
@@ -49,6 +50,19 @@ const ADMIN_HELP: HelpItem[] = [
   },
 ]
 
+const SUGGEST_STATUS_LABEL: Record<SuggestStatus, string> = {
+  approved: '公開中',
+  pending: '承認待ち',
+  hidden: '非表示',
+}
+
+const SUGGEST_FILTERS: [SuggestStatus | 'all', string][] = [
+  ['all', 'すべて'],
+  ['pending', '承認待ち'],
+  ['approved', '公開中'],
+  ['hidden', '非表示'],
+]
+
 interface PendingAction {
   message: string
   confirmLabel: string
@@ -59,6 +73,7 @@ interface PendingAction {
 }
 
 export default function AdminTab() {
+  const { user } = useAuth()
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [books, setBooks] = useState<Book[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
@@ -78,6 +93,7 @@ export default function AdminTab() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({ title: '', author: '', genre: 'その他', publisher: '', totalPages: '', isbn: '', ccode: '', catalogNumber: '', ndc: '' })
   const [suggestSearch, setSuggestSearch] = useState('')
+  const [suggestFilter, setSuggestFilter] = useState<SuggestStatus | 'all'>('all')
   const [suggestAddErrors, setSuggestAddErrors] = useState<FieldErrors>({})
   const [suggestEditErrors, setSuggestEditErrors] = useState<FieldErrors>({})
   const [pending, setPending] = useState<PendingAction | null>(null)
@@ -96,7 +112,7 @@ export default function AdminTab() {
       setSessions(s)
       setActions(a)
       setSuggestBooks(sb)
-      setAdminBooksCache(sb)
+      setAdminBooksCache(sb, user?.id)
       setFeedbackList(fb)
       setViewedCount(prev => { const v = Math.min(prev, a.length); localStorage.setItem('admin_history_viewed', String(v)); return v })
       setFeedbackViewedCount(prev => { const v = Math.min(prev, fb.length); localStorage.setItem('admin_feedback_viewed', String(v)); return v })
@@ -201,7 +217,7 @@ export default function AdminTab() {
     }
     const sb = await getSuggestBooks()
     setSuggestBooks(sb)
-    setAdminBooksCache(sb)
+    setAdminBooksCache(sb, user?.id)
     setSeedProgress(null)
     setSeeding(false)
   }
@@ -227,7 +243,7 @@ export default function AdminTab() {
       })
       const sb = await getSuggestBooks()
       setSuggestBooks(sb)
-      setAdminBooksCache(sb)
+      setAdminBooksCache(sb, user?.id)
       setSuggestForm({ title: '', author: '', genre: 'その他', publisher: '', totalPages: '', isbn: '', ccode: '', catalogNumber: '', ndc: '' })
       setSuggestAddErrors({})
     } catch (e) {
@@ -263,7 +279,7 @@ export default function AdminTab() {
     setSuggestEditErrors({})
     const sb = await getSuggestBooks()
     setSuggestBooks(sb)
-    setAdminBooksCache(sb)
+    setAdminBooksCache(sb, user?.id)
   }
 
   const handleDeleteSuggest = (id: string) => {
@@ -279,9 +295,16 @@ export default function AdminTab() {
         await deleteSuggestBook(id)
         const sb = await getSuggestBooks()
         setSuggestBooks(sb)
-        setAdminBooksCache(sb)
+        setAdminBooksCache(sb, user?.id)
       },
     })
+  }
+
+  const handleSuggestStatus = async (id: string, status: SuggestStatus) => {
+    await updateSuggestStatus(id, status)
+    const sb = await getSuggestBooks()
+    setSuggestBooks(sb)
+    setAdminBooksCache(sb, user?.id)
   }
 
   const totalSessions = sessions.length
@@ -591,7 +614,8 @@ export default function AdminTab() {
           </div>
           {(() => {
             const q = suggestSearch.trim().toLowerCase()
-            const filtered = q ? suggestBooks.filter(sb =>
+            const byStatus = suggestFilter === 'all' ? suggestBooks : suggestBooks.filter(sb => (sb.status ?? 'approved') === suggestFilter)
+            const filtered = q ? byStatus.filter(sb =>
               sb.title.toLowerCase().includes(q) ||
               sb.author.toLowerCase().includes(q) ||
               sb.publisher.toLowerCase().includes(q) ||
@@ -600,12 +624,34 @@ export default function AdminTab() {
               (sb.ccode ?? '').toLowerCase().includes(q) ||
               (sb.catalogNumber ?? '').toLowerCase().includes(q) ||
               (sb.ndc ?? '').toLowerCase().includes(q)
-            ) : suggestBooks
+            ) : byStatus
+            const countOf = (val: SuggestStatus | 'all') =>
+              val === 'all' ? suggestBooks.length : suggestBooks.filter(sb => (sb.status ?? 'approved') === val).length
+            const filterRow = (
+              <div className="feedback-filter-row">
+                {SUGGEST_FILTERS.map(([val, label]) => (
+                  <button
+                    key={val}
+                    className={`feedback-filter-btn${suggestFilter === val ? ' active' : ''}${val !== 'all' ? ` suggest-filter-btn--${val}` : ''}`}
+                    onClick={() => setSuggestFilter(val)}
+                  >
+                    {label}
+                    {val === 'pending' && countOf('pending') > 0 && <span className="feedback-filter-count">{countOf('pending')}</span>}
+                  </button>
+                ))}
+              </div>
+            )
             if (suggestBooks.length === 0) return <p className="admin-empty">サジェストはありません</p>
-            if (filtered.length === 0) return <p className="admin-empty">「{suggestSearch}」に一致するサジェストが見つかりません</p>
+            if (filtered.length === 0) return (
+              <>
+                {filterRow}
+                <p className="admin-empty">{q ? `「${suggestSearch}」に一致するサジェストが見つかりません` : '該当するサジェストはありません'}</p>
+              </>
+            )
             return (
               <>
-                <p className="admin-count">{filtered.length} / {suggestBooks.length} 件</p>
+                {filterRow}
+                <p className="admin-count">{filtered.length} / {countOf(suggestFilter)} 件</p>
                 <div className="admin-user-list">
                   {filtered.map(sb => editingId === sb.id ? (
                 <div key={sb.id} className="admin-user-card admin-suggest-edit-card">
@@ -642,10 +688,28 @@ export default function AdminTab() {
               ) : (
                 <div key={sb.id} className="admin-user-card">
                   <div className="admin-user-info">
-                    <span className="admin-user-email">{sb.title}</span>
+                    <span className="admin-user-email">
+                      {sb.title}
+                      <span className={`suggest-status-badge suggest-status-badge--${sb.status ?? 'approved'}`}>{SUGGEST_STATUS_LABEL[sb.status ?? 'approved']}</span>
+                    </span>
                     <span className="admin-user-meta">{formatAuthor(sb.author)} / {sb.genre}{sb.publisher ? ` / ${sb.publisher}` : ''}{sb.totalPages ? ` / ${sb.totalPages}p` : ''}</span>
+                    <span className="admin-user-meta">
+                      登録: {sb.createdAt ? formatDate(sb.createdAt) : '不明'}
+                      {' / '}
+                      {sb.createdBy == null ? '登録者不明' : profiles.find(p => p.id === sb.createdBy)?.email ?? 'ユーザー'}
+                    </span>
                   </div>
                   <div className="admin-user-actions">
+                    {(sb.status ?? 'approved') !== 'approved' && (
+                      <button className="admin-edit-btn" onClick={() => handleSuggestStatus(sb.id, 'approved')} title={sb.status === 'pending' ? '承認して全ユーザーに公開' : '公開に戻す'}>
+                        <IconCheck size={15} /> {sb.status === 'pending' ? '承認' : '公開に戻す'}
+                      </button>
+                    )}
+                    {(sb.status ?? 'approved') !== 'hidden' && (
+                      <button className="admin-ban-btn" onClick={() => handleSuggestStatus(sb.id, 'hidden')} title="だれの候補にも出さない">
+                        <IconEyeOff size={15} /> 非表示
+                      </button>
+                    )}
                     <button className="admin-edit-btn" onClick={() => handleEditStart(sb)} title="編集"><IconPencil size={15} /> 編集</button>
                     <button className="admin-delete-btn" onClick={() => handleDeleteSuggest(sb.id)} title="削除"><IconTrash size={15} /> 削除</button>
                   </div>

@@ -100,7 +100,7 @@ function AppInner() {
         clearTimeout(timeout)
         setBooks(b)
         setSessions(s)
-        setAdminBooksCache(sb)
+        setAdminBooksCache(sb, user?.id)
         setSyncState('synced')
         setDataLoaded(true)
         if (shouldShowTutorial()) setShowTutorial(true)
