@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import type { User } from '@supabase/supabase-js'
+import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
 const isNative = () => (window as any).Capacitor?.isNativePlatform?.() === true
 const isAndroid = () => (window as any).Capacitor?.getPlatform?.() === 'android'
 import { supabase } from '../lib/supabase'
@@ -35,6 +35,7 @@ interface AuthContextValue {
   deleteAccount: () => Promise<void>
   resetPassword: (email: string) => Promise<string | null>
   passwordRecoveryMode: boolean
+  startPasswordRecovery: () => void
   clearPasswordRecoveryMode: () => void
 }
 
@@ -48,6 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [passwordRecoveryMode, setPasswordRecoveryMode] = useState(false)
   const socialLoginInitError = useRef<Error | null>(null)
 
+  const startPasswordRecovery = () => setPasswordRecoveryMode(true)
   const clearPasswordRecoveryMode = () => setPasswordRecoveryMode(false)
 
   useEffect(() => {
@@ -85,9 +87,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let initialDone = false
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const handleAuthEvent = async (event: AuthChangeEvent, session: Session | null) => {
       if (event === 'PASSWORD_RECOVERY') {
         setPasswordRecoveryMode(true)
+        setUser(session?.user ?? null)
         setLoading(false)
         initialDone = true
         return
@@ -115,6 +118,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null)
         setRole(null)
       }
+    }
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Supabase は内部ロックを保持したままこのコールバックを呼ぶ。ここで Supabase の
+      // 呼び出し（checkBan など）を await すると同じロックを待ってデッドロックするので、ロック解放後に処理する
+      setTimeout(() => { void handleAuthEvent(event, session) }, 0)
     })
 
     const timeout = setTimeout(() => {
@@ -247,7 +256,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, role, loading, bannedError, clearBannedError, signUp, signIn, signInWithGoogle, signInWithApple, signOut, deleteAccount: handleDeleteAccount, resetPassword, passwordRecoveryMode, clearPasswordRecoveryMode }}>
+    <AuthContext.Provider value={{ user, role, loading, bannedError, clearBannedError, signUp, signIn, signInWithGoogle, signInWithApple, signOut, deleteAccount: handleDeleteAccount, resetPassword, passwordRecoveryMode, startPasswordRecovery, clearPasswordRecoveryMode }}>
       {children}
     </AuthContext.Provider>
   )

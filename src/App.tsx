@@ -22,7 +22,7 @@ export type Theme = 'light' | 'dark' | 'system'
 export type SyncState = 'idle' | 'syncing' | 'synced' | 'offline'
 
 function AppInner() {
-  const { user, role, loading: authLoading, bannedError, clearBannedError, passwordRecoveryMode, clearPasswordRecoveryMode } = useAuth()
+  const { user, role, loading: authLoading, bannedError, clearBannedError, passwordRecoveryMode, startPasswordRecovery } = useAuth()
   const [tab, setTab] = useState<Tab>('timer')
   const [books, setBooks] = useState<Book[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
@@ -43,11 +43,9 @@ function AppInner() {
   }, [])
 
   useEffect(() => {
-    if (!passwordRecoveryMode) return
-    setTab('settings')
-    setShowAuthModal(true)
-    clearPasswordRecoveryMode()
-  }, [passwordRecoveryMode, clearPasswordRecoveryMode])
+    // フォームは SettingsTab が表示し、変更完了時にモードを解除する
+    if (passwordRecoveryMode) setTab('settings')
+  }, [passwordRecoveryMode])
 
   useEffect(() => {
     if ((window as any).Capacitor?.isNativePlatform?.() !== true) return
@@ -66,6 +64,8 @@ function AppInner() {
           const refresh_token = hash.get('refresh_token')
           if (access_token && refresh_token) {
             await supabase.auth.setSession({ access_token, refresh_token })
+            // setSession は PASSWORD_RECOVERY を発火しないため、リンクの種類から判定する
+            if (hash.get('type') === 'recovery') startPasswordRecovery()
           }
         }
       }).then(h => {
