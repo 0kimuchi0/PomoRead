@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { IconShield, IconUser, IconBan, IconRefresh, IconChartBar, IconBook, IconHistory, IconArrowBackUp, IconBookmark, IconPlus, IconTrash, IconPencil, IconDeviceFloppy, IconX, IconSearch, IconQuestionMark, IconMessage, IconCheck, IconEyeOff } from '@tabler/icons-react'
 import { getAllProfiles, updateUserRole, updateUserBanned, getAllBooksAdmin, getAllSessionsAdmin, logAdminAction, getAdminActions, revertAdminAction, getSuggestBooks, addSuggestBook, updateSuggestBook, updateSuggestStatus, deleteSuggestBook, getFeedbackList, updateFeedbackStatus } from '../lib/db'
+import type { AdminBook, AdminSession } from '../lib/db'
 import { validateBookFields, hasErrors, formatCcode } from '../lib/validate'
 import { formatAuthor } from '../lib/format'
 import type { FieldErrors } from '../lib/validate'
 import { setAdminBooksCache, SUGGEST_BOOKS } from '../suggestBooks'
 import { useAuth } from '../auth/AuthContext'
-import type { Profile, UserRole, Book, Session, SuggestBookDB, SuggestStatus, Feedback, FeedbackStatus } from '../types'
+import type { Profile, UserRole, SuggestBookDB, SuggestStatus, Feedback, FeedbackStatus } from '../types'
 import type { AdminAction } from '../types'
 import ConfirmDialog from './ConfirmDialog'
 import HelpModal from './HelpModal'
@@ -75,8 +76,8 @@ interface PendingAction {
 export default function AdminTab() {
   const { user } = useAuth()
   const [profiles, setProfiles] = useState<Profile[]>([])
-  const [books, setBooks] = useState<Book[]>([])
-  const [sessions, setSessions] = useState<Session[]>([])
+  const [books, setBooks] = useState<AdminBook[]>([])
+  const [sessions, setSessions] = useState<AdminSession[]>([])
   const [actions, setActions] = useState<AdminAction[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
@@ -376,8 +377,8 @@ export default function AdminTab() {
                 <div className="admin-user-info">
                   <span className="admin-user-email">{p.email || '(メールなし)'}</span>
                   <span className="admin-user-meta">
-                    {books.filter(b => (b as any).user_id === p.id).length} 冊 ·{' '}
-                    {sessions.filter(s => (s as any).user_id === p.id).length} セッション
+                    {books.filter(b => b.userId === p.id).length} 冊 ·{' '}
+                    {sessions.filter(s => s.userId === p.id).length} セッション
                   </span>
                 </div>
                 <div className="admin-user-actions">
@@ -415,7 +416,7 @@ export default function AdminTab() {
           <h3 className="admin-section-title"><IconBook size={16} /> ユーザー別アクティビティ</h3>
           <div className="admin-user-list">
             {profiles
-              .map(p => ({ ...p, bookCount: books.filter(b => (b as any).user_id === p.id).length, sessionCount: sessions.filter(s => (s as any).user_id === p.id).length }))
+              .map(p => ({ ...p, bookCount: books.filter(b => b.userId === p.id).length, sessionCount: sessions.filter(s => s.userId === p.id).length }))
               .sort((a, b) => b.sessionCount - a.sessionCount)
               .map(p => (
                 <div key={p.id} className="admin-user-card">

@@ -206,16 +206,26 @@ export async function updateUserBanned(userId: string, banned: boolean): Promise
   await supabase.from('profiles').update({ banned }).eq('id', userId)
 }
 
-export async function getAllBooksAdmin(): Promise<Book[]> {
+// 管理画面用。ユーザー別に集計するため、だれのデータか（user_id）も残す
+export type AdminBook = Book & { userId: string }
+export type AdminSession = Session & { userId: string }
+
+export async function getAllBooksAdmin(): Promise<AdminBook[]> {
   const { data, error } = await supabase.from('books').select('*').order('created_at', { ascending: true })
   if (error) throw new Error(error.message)
-  return (data ?? []).map(r => fromRow(r as unknown as BookRow))
+  return (data ?? []).map(r => {
+    const row = r as unknown as BookRow & { user_id: string }
+    return { ...fromRow(row), userId: row.user_id }
+  })
 }
 
-export async function getAllSessionsAdmin(): Promise<Session[]> {
+export async function getAllSessionsAdmin(): Promise<AdminSession[]> {
   const { data, error } = await supabase.from('sessions').select('*').order('date', { ascending: true })
   if (error) throw new Error(error.message)
-  return (data ?? []).map(r => sessionFromRow(r as unknown as SessionRow))
+  return (data ?? []).map(r => {
+    const row = r as unknown as SessionRow & { user_id: string }
+    return { ...sessionFromRow(row), userId: row.user_id }
+  })
 }
 
 // ---- admin actions ----
