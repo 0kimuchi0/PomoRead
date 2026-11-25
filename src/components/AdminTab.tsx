@@ -8,6 +8,7 @@ import type { FieldErrors } from '../lib/validate'
 import { setAdminBooksCache, SUGGEST_BOOKS } from '../suggestBooks'
 import { useAuth } from '../auth/AuthContext'
 import { issueUrl, ISSUE_KINDS } from '../lib/constants'
+import { openAfter } from '../lib/openAfter'
 import type { IssueKind } from '../lib/constants'
 import type { Profile, UserRole, SuggestBookDB, SuggestStatus, Feedback, FeedbackStatus } from '../types'
 import type { AdminAction } from '../types'
@@ -335,7 +336,8 @@ export default function AdminTab() {
       onConfirm: async () => {
         setCreatingIssueId(f.id)
         try {
-          const url = await createIssueFromFeedback(f.id, kind)
+          // 作成できたら、その Issue を新しいタブで自動で開く
+          const url = await openAfter(() => createIssueFromFeedback(f.id, kind))
           setFeedbackList(prev => prev.map(x => x.id === f.id ? { ...x, issueUrl: url } : x))
         } catch (e) {
           alert(`Issue を作成できませんでした: ${e instanceof Error ? e.message : String(e)}`)
