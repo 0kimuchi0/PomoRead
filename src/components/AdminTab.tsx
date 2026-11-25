@@ -7,7 +7,6 @@ import type { FieldErrors } from '../lib/validate'
 import { setAdminBooksCache, SUGGEST_BOOKS } from '../suggestBooks'
 import type { Profile, UserRole, Book, Session, SuggestBookDB, Feedback, FeedbackStatus } from '../types'
 import type { AdminAction } from '../types'
-import { useAuth } from '../auth/AuthContext'
 import ConfirmDialog from './ConfirmDialog'
 import HelpModal from './HelpModal'
 import type { HelpItem } from './HelpModal'
@@ -31,7 +30,7 @@ const ADMIN_HELP: HelpItem[] = [
     icon: <IconBookmark size={18} />,
     title: 'サジェスト管理',
     desc: '全ユーザーの検索候補に表示される本を追加・インライン編集・削除できます',
-    detail: '管理者が追加したサジェストは全ユーザーのタイトル入力候補として表示されます。タイトル・著者・出版社・ジャンル・ページ数・ISBN・Cコード・NDC・整理番号を登録できます。検索バーで絞り込み、各行の「編集」ボタンでインライン編集が可能です。削除時は理由の入力が必須で、すべての操作が操作履歴に記録されます。',
+    detail: '管理者が追加したサジェストは全ユーザーのタイトル入力候補として表示されます。タイトル・著者・出版社・ジャンル・ページ数・ISBN・Cコード・NDC・整理番号を登録できます。検索バーで絞り込み、各行の「編集」ボタンでインライン編集が可能です。サジェストの追加・編集・削除は操作履歴には記録されません。',
     image: <img src="/help/admin-suggest.svg" width="280" height="160" alt="" />,
   },
   {
@@ -54,11 +53,12 @@ interface PendingAction {
   message: string
   confirmLabel: string
   danger: boolean
+  /** 理由の入力を必須にするか（省略時は必須） */
+  requireReason?: boolean
   onConfirm: (reason: string) => Promise<void>
 }
 
 export default function AdminTab() {
-  const { user } = useAuth()
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [books, setBooks] = useState<Book[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
@@ -225,22 +225,9 @@ export default function AdminTab() {
         catalogNumber: suggestForm.catalogNumber.trim() || undefined,
         ndc: suggestForm.ndc.trim() || undefined,
       })
-      if (user?.id) {
-        await logAdminAction(user.id, 'suggest_add', '', newTitle, '')
-      }
       const sb = await getSuggestBooks()
       setSuggestBooks(sb)
       setAdminBooksCache(sb)
-      setActions(prev => [{
-        id: crypto.randomUUID(),
-        adminId: user?.id ?? '',
-        targetUserId: user?.id ?? '',
-        actionType: 'suggest_add',
-        previousValue: '',
-        newValue: newTitle,
-        reason: '',
-        createdAt: new Date().toISOString(),
-      }, ...prev])
       setSuggestForm({ title: '', author: '', genre: 'その他', publisher: '', totalPages: '', isbn: '', ccode: '', catalogNumber: '', ndc: '' })
       setSuggestAddErrors({})
     } catch (e) {
@@ -260,12 +247,9 @@ export default function AdminTab() {
     const errs = validateBookFields(editForm)
     setSuggestEditErrors(errs)
     if (hasErrors(errs)) return
-    const oldBook = suggestBooks.find(b => b.id === id)
-    const oldTitle = oldBook?.title ?? ''
-    const newTitle = editForm.title.trim()
     await updateSuggestBook({
       id,
-      title: newTitle,
+      title: editForm.title.trim(),
       author: formatAuthor(editForm.author.trim()),
       genre: editForm.genre,
       publisher: editForm.publisher.trim(),
@@ -275,22 +259,11 @@ export default function AdminTab() {
       catalogNumber: editForm.catalogNumber.trim() || undefined,
       ndc: editForm.ndc.trim() || undefined,
     })
-    await logAdminAction(user?.id ?? '', 'suggest_edit', oldTitle, newTitle, '')
     setEditingId(null)
     setSuggestEditErrors({})
     const sb = await getSuggestBooks()
     setSuggestBooks(sb)
     setAdminBooksCache(sb)
-    setActions(prev => [{
-      id: crypto.randomUUID(),
-      adminId: user?.id ?? '',
-      targetUserId: user?.id ?? '',
-      actionType: 'suggest_edit',
-      previousValue: oldTitle,
-      newValue: newTitle,
-      reason: '',
-      createdAt: new Date().toISOString(),
-    }, ...prev])
   }
 
   const handleDeleteSuggest = (id: string) => {
@@ -300,22 +273,13 @@ export default function AdminTab() {
       message: `サジェスト「${title}」を削除しますか？`,
       confirmLabel: '削除する',
       danger: true,
-      onConfirm: async (reason) => {
+      // サジェストの変更は操作履歴に残さないので、理由の入力も求めない
+      requireReason: false,
+      onConfirm: async () => {
         await deleteSuggestBook(id)
-        await logAdminAction(user?.id ?? '', 'suggest_delete', title, '', reason)
         const sb = await getSuggestBooks()
         setSuggestBooks(sb)
         setAdminBooksCache(sb)
-        setActions(prev => [{
-          id: crypto.randomUUID(),
-          adminId: user?.id ?? '',
-          targetUserId: user?.id ?? '',
-          actionType: 'suggest_delete',
-          previousValue: title,
-          newValue: '',
-          reason,
-          createdAt: new Date().toISOString(),
-        }, ...prev])
       },
     })
   }
@@ -326,9 +290,6 @@ export default function AdminTab() {
   const doneBooks = books.filter(b => b.status === 'done').length
 
   const actionLabel = (a: AdminAction) => {
-    if (a.actionType === 'suggest_add') return `サジェスト「${a.newValue}」を追加`
-    if (a.actionType === 'suggest_edit') return `サジェスト「${a.previousValue}」→「${a.newValue}」に編集`
-    if (a.actionType === 'suggest_delete') return `サジェスト「${a.previousValue}」を削除`
     const target = profiles.find(p => p.id === a.targetUserId)?.email ?? a.targetUserId
     if (a.actionType === 'role_change') return `${target} のロールを「${a.previousValue}」→「${a.newValue}」に変更`
     if (a.actionType === 'ban') return `${target} をBAN`
@@ -452,7 +413,7 @@ export default function AdminTab() {
               <div key={a.id} className="admin-action-card">
                 <div className="admin-action-info">
                   <span className="admin-action-desc">{actionLabel(a)}</span>
-                  {a.actionType !== 'suggest_add' && <span className="admin-action-reason">理由: {a.reason}</span>}
+                  <span className="admin-action-reason">理由: {a.reason}</span>
                   <span className="admin-action-date">{formatDate(a.createdAt)}</span>
                 </div>
                 <button className="admin-revert-btn" onClick={() => handleRevert(a)} title="この変更を巻き戻す">
@@ -702,7 +663,7 @@ export default function AdminTab() {
           message={pending.message}
           confirmLabel={pending.confirmLabel}
           danger={pending.danger}
-          requireReason
+          requireReason={pending.requireReason ?? true}
           onConfirm={handleConfirm}
           onCancel={handleCancel}
         />
