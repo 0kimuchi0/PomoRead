@@ -1467,7 +1467,20 @@ label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--color-
 .feedback-issue-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .feedback-issue-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 20px; border: 1.5px solid var(--accent); background: var(--accent-dim); color: var(--accent); cursor: pointer; }
 .feedback-issue-btn:disabled { opacity: 0.6; cursor: default; }
-.feedback-issue-kind { width: auto; font-size: 0.75rem; padding: 3px 6px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); }
+.issue-kind-picker { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.issue-kind-btn { font-size: 0.75rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; border: 1.5px solid var(--color-border); background: var(--color-bg); color: var(--color-text-muted); cursor: pointer; opacity: 0.6; transition: all 0.15s; }
+.issue-kind-btn:hover, .issue-kind-btn.active { opacity: 1; }
+.issue-kind-btn--bug.active, .issue-kind-btn--bug:hover                     { border-color: #ef4444; background: #fef2f2; color: #991b1b; }
+.issue-kind-btn--feature.active, .issue-kind-btn--feature:hover             { border-color: #3b82f6; background: #eff6ff; color: #1e40af; }
+.issue-kind-btn--investigation.active, .issue-kind-btn--investigation:hover { border-color: #d97706; background: #fffbeb; color: #92400e; }
+[data-theme="dark"] .issue-kind-btn--bug.active, [data-theme="dark"] .issue-kind-btn--bug:hover                     { background: #3b0000; color: #fca5a5; }
+[data-theme="dark"] .issue-kind-btn--feature.active, [data-theme="dark"] .issue-kind-btn--feature:hover             { background: #0b1d3a; color: #93c5fd; }
+[data-theme="dark"] .issue-kind-btn--investigation.active, [data-theme="dark"] .issue-kind-btn--investigation:hover { background: #2d1f00; color: #fcd34d; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .issue-kind-btn--bug.active, :root:not([data-theme="light"]) .issue-kind-btn--bug:hover                     { background: #3b0000; color: #fca5a5; }
+  :root:not([data-theme="light"]) .issue-kind-btn--feature.active, :root:not([data-theme="light"]) .issue-kind-btn--feature:hover             { background: #0b1d3a; color: #93c5fd; }
+  :root:not([data-theme="light"]) .issue-kind-btn--investigation.active, :root:not([data-theme="light"]) .issue-kind-btn--investigation:hover { background: #2d1f00; color: #fcd34d; }
+}
 a.help-btn { text-decoration: none; }
 .feedback-status-btn { font-size: 0.78rem; font-weight: 600; padding: 4px 12px; border-radius: 20px; border: 1.5px solid var(--color-border); background: var(--color-bg); color: var(--color-text-muted); cursor: pointer; opacity: 0.5; transition: all 0.15s; }
 .feedback-status-btn:hover, .feedback-status-btn.active { opacity: 1; }

@@ -564,16 +564,20 @@ export default function AdminTab() {
                           </a>
                         ) : (
                           <>
-                            <select
-                              className="feedback-issue-kind"
-                              value={issueKindOf(f.id)}
-                              onChange={e => setIssueKinds(prev => ({ ...prev, [f.id]: e.target.value as IssueKind }))}
-                              aria-label="Issue の種類"
-                            >
+                            <div className="issue-kind-picker" role="radiogroup" aria-label="Issue の種類">
                               {(Object.keys(ISSUE_KINDS) as IssueKind[]).map(k => (
-                                <option key={k} value={k}>{ISSUE_KINDS[k].label}</option>
+                                <button
+                                  key={k}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={issueKindOf(f.id) === k}
+                                  className={`issue-kind-btn issue-kind-btn--${k}${issueKindOf(f.id) === k ? ' active' : ''}`}
+                                  onClick={() => setIssueKinds(prev => ({ ...prev, [f.id]: k }))}
+                                >
+                                  {ISSUE_KINDS[k].label}
+                                </button>
                               ))}
-                            </select>
+                            </div>
                             <button
                               className="feedback-issue-btn"
                               disabled={creatingIssueId === f.id}
