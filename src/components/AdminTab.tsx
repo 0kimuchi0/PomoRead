@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { IconShield, IconUser, IconBan, IconRefresh, IconChartBar, IconBook, IconHistory, IconArrowBackUp, IconBookmark, IconPlus, IconTrash, IconPencil, IconDeviceFloppy, IconX, IconSearch, IconQuestionMark, IconMessage, IconCheck, IconEyeOff } from '@tabler/icons-react'
+import { IconShield, IconUser, IconBan, IconRefresh, IconChartBar, IconBook, IconHistory, IconArrowBackUp, IconBookmark, IconPlus, IconTrash, IconPencil, IconDeviceFloppy, IconX, IconSearch, IconQuestionMark, IconMessage, IconCheck, IconEyeOff, IconBrandGithub } from '@tabler/icons-react'
 import { getAllProfiles, updateUserRole, updateUserBanned, getAllBooksAdmin, getAllSessionsAdmin, logAdminAction, getAdminActions, revertAdminAction, getSuggestBooks, addSuggestBook, updateSuggestBook, updateSuggestStatus, deleteSuggestBook, getFeedbackList, updateFeedbackStatus } from '../lib/db'
 import type { AdminBook, AdminSession } from '../lib/db'
 import { validateBookFields, hasErrors, formatCcode } from '../lib/validate'
@@ -7,6 +7,7 @@ import { formatAuthor } from '../lib/format'
 import type { FieldErrors } from '../lib/validate'
 import { setAdminBooksCache, SUGGEST_BOOKS } from '../suggestBooks'
 import { useAuth } from '../auth/AuthContext'
+import { issueUrl } from '../lib/constants'
 import type { Profile, UserRole, SuggestBookDB, SuggestStatus, Feedback, FeedbackStatus } from '../types'
 import type { AdminAction } from '../types'
 import ConfirmDialog from './ConfirmDialog'
@@ -63,6 +64,16 @@ const SUGGEST_FILTERS: [SuggestStatus | 'all', string][] = [
   ['approved', '公開中'],
   ['hidden', '非表示'],
 ]
+
+// フィードバックの内容を「機能の要望」フォームに入れた状態で開く
+function feedbackIssueUrl(content: string): string {
+  const firstLine = content.trim().split('\n')[0]
+  const summary = firstLine.length > 40 ? `${firstLine.slice(0, 40)}…` : firstLine
+  return issueUrl('2-feature.yml', {
+    title: `[Feature] ${summary}`,
+    problem: `アプリのフィードバックより:\n\n${content.trim().split('\n').map(l => `> ${l}`).join('\n')}`,
+  })
+}
 
 interface PendingAction {
   message: string
@@ -334,6 +345,10 @@ export default function AdminTab() {
           <button className="admin-refresh-btn" onClick={load} title="更新">
             <IconRefresh size={16} />
           </button>
+          <a className="help-btn" href={issueUrl()} target="_blank" rel="noopener noreferrer" title="GitHub の Issue 一覧を開く">
+            <IconBrandGithub size={15} />
+            Issue
+          </a>
           <button className="help-btn" onClick={() => setShowHelp(true)}>
             <IconQuestionMark size={15} />
             使い方
@@ -506,6 +521,15 @@ export default function AdminTab() {
                         <span className="admin-action-date">{formatDate(f.createdAt)}</span>
                       </div>
                       <p className="admin-feedback-content">{f.content}</p>
+                      <a
+                        className="feedback-issue-link"
+                        href={feedbackIssueUrl(f.content)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="このフィードバックの内容を入れた状態で、機能の要望の Issue 作成画面を開く"
+                      >
+                        <IconBrandGithub size={13} /> Issue にする
+                      </a>
                       <div className="feedback-status-picker">
                         {([['pending', '未着手'], ['in_progress', '対応中'], ['done', '完了'], ['rejected', '却下']] as [FeedbackStatus, string][]).map(([val, label]) => (
                           <button
