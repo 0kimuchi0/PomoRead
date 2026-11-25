@@ -103,7 +103,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false)
         if (newUser) {
           const banned = await checkBan(newUser.id)
-          if (!banned) setUser(newUser)
+          if (!banned) {
+            setUser(newUser)
+            // 前回送れずに端末に残った記録があれば、起動時にも再挑戦する
+            void migrateLocalDataToSupabase(newUser.id).catch(() => {})
+          }
         }
         return
       }
@@ -111,8 +115,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (newUser) {
         const banned = await checkBan(newUser.id)
         if (!banned) {
+          // 未ログイン中の記録を先に送ってから user を設定し、直後の一覧読み込みに含める（最大 5 秒待つ）
+          await Promise.race([
+            migrateLocalDataToSupabase(newUser.id).catch(() => {}),
+            new Promise(resolve => setTimeout(resolve, 5000)),
+          ])
           setUser(newUser)
-          migrateLocalDataToSupabase(newUser.id)
         }
       } else {
         setUser(null)
