@@ -8,7 +8,7 @@ name: Supabase Backup
 #   3. tar -xzf backup.tar.gz  → schema.sql（構造）/ data.sql（データ）/ roles.sql（ロール）
 on:
   schedule:
-    - cron: '17 18 * * 0' # 毎週月曜 3:17（日本時間）
+    - cron: '0 15 * * 0' # 毎週月曜 0:00（日本時間）。GitHub の混雑で数分〜数十分遅れることがある
   workflow_dispatch:
 
 permissions:
