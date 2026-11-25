@@ -1293,6 +1293,11 @@ label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--color-
 }
 .auth-done p { font-size: 0.9rem; color: var(--color-text-muted); }
 .auth-done .btn-primary { align-self: center; }
+.auth-done p.auth-done-note {
+  font-size: 0.8rem; line-height: 1.6;
+  background: var(--color-bg); border: 1px solid var(--color-border);
+  border-radius: var(--radius); padding: 10px 12px; margin-top: 4px;
+}
 
 /* ===== Account section in Settings ===== */
 .account-info {
