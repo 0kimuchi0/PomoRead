@@ -48,7 +48,13 @@ export interface SuggestBookDB {
   ccode?: string
   catalogNumber?: string
   ndc?: string
+  /** 承認状態。DB から読んだものだけが持つ（approved: 全員に公開 / pending: 承認待ち / hidden: 非表示） */
+  status?: SuggestStatus
+  createdBy?: string | null
+  createdAt?: string
 }
+
+export type SuggestStatus = 'approved' | 'pending' | 'hidden'
 
 export type AdminActionType = 'role_change' | 'ban' | 'unban'
 

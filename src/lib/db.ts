@@ -1,4 +1,4 @@
-import type { Book, Session, Profile, UserRole, AdminAction, AdminActionType, SuggestBookDB, Feedback, FeedbackStatus } from '../types'
+import type { Book, Session, Profile, UserRole, AdminAction, AdminActionType, SuggestBookDB, SuggestStatus, Feedback, FeedbackStatus } from '../types'
 import { getBooks as lsGetBooks, saveBooks as lsSaveBooks, getSessions as lsGetSessions, saveSessions as lsSaveSessions } from '../storage'
 import { supabase } from './supabase'
 
@@ -28,6 +28,7 @@ interface AdminActionRow {
 interface SuggestBookRow {
   id: string; title: string; author: string; genre: string; publisher: string
   total_pages: number; isbn?: string; ccode?: string; catalog_number?: string; ndc?: string
+  status?: string; created_by?: string | null; created_at?: string
 }
 
 interface FeedbackRow {
@@ -300,8 +301,16 @@ export async function getSuggestBooks(): Promise<SuggestBookDB[]> {
       ccode: row.ccode || undefined,
       catalogNumber: row.catalog_number || undefined,
       ndc: row.ndc || undefined,
+      status: (row.status as SuggestStatus | undefined) ?? 'approved',
+      createdBy: row.created_by ?? null,
+      createdAt: row.created_at,
     }
   })
+}
+
+export async function updateSuggestStatus(id: string, status: SuggestStatus): Promise<void> {
+  const { error } = await supabase.from('suggest_books').update({ status }).eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 export async function addSuggestBook(book: Omit<SuggestBookDB, 'id'>): Promise<void> {

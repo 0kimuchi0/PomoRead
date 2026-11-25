@@ -116,9 +116,21 @@ const USER_SUGGEST_KEY = 'pr_user_suggestions'
 
 let _adminBooks: SuggestBookDB[] = []
 
-export function setAdminBooksCache(books: SuggestBookDB[]): void {
-  _adminBooks = books
-  buildReadingIndex(books.flatMap(b => [b.title, b.author]))
+/**
+ * 入力候補に使うサジェストだけを残す。
+ * 公開中のものと、自分が登録した承認待ちのものを使う（非表示・他人の承認待ちは使わない）。
+ * 管理者は全件を読めるので、ここで候補を絞る必要がある。
+ */
+export function candidateSuggestBooks(books: SuggestBookDB[], userId: string | null | undefined): SuggestBookDB[] {
+  return books.filter(b =>
+    (b.status ?? 'approved') === 'approved' ||
+    (b.status === 'pending' && !!userId && b.createdBy === userId),
+  )
+}
+
+export function setAdminBooksCache(books: SuggestBookDB[], userId?: string | null): void {
+  _adminBooks = candidateSuggestBooks(books, userId)
+  buildReadingIndex(_adminBooks.flatMap(b => [b.title, b.author]))
 }
 
 export function addToAdminBooksCache(book: SuggestBook): void {
