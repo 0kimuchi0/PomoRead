@@ -257,7 +257,10 @@ export async function getAdminActions(): Promise<AdminAction[]> {
     .select('*')
     .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
-  return (data ?? []).map(r => adminActionFromRow(r as unknown as AdminActionRow))
+  return (data ?? [])
+    .map(r => adminActionFromRow(r as unknown as AdminActionRow))
+    // サジェストの変更は操作履歴に残さない（以前に記録された分も表示しない）
+    .filter(a => a.actionType === 'role_change' || a.actionType === 'ban' || a.actionType === 'unban')
 }
 
 export async function revertAdminAction(action: AdminAction): Promise<void> {
