@@ -1,4 +1,4 @@
-// 管理画面の「Issue にする」から呼ばれ、フィードバックを GitHub の Issue（機能の要望）として作成する。
+// 管理画面の「Issue にする」から呼ばれ、フィードバックを GitHub の Issue（不具合・機能の要望・調査）として作成する。
 // GitHub のトークンはここ（サーバー側）にだけ置き、アプリには渡さない。
 //
 // 必要なシークレット（Supabase → Edge Functions → Secrets）
@@ -19,26 +19,54 @@ function json(body: unknown, status = 200): Response {
   })
 }
 
-function buildTitle(content: string): string {
-  const firstLine = content.trim().split('\n')[0]
-  const summary = firstLine.length > 40 ? `${firstLine.slice(0, 40)}…` : firstLine
-  return `[Feature] ${summary}`
+type IssueKind = 'bug' | 'feature' | 'investigation'
+
+// .github/ISSUE_TEMPLATE のフォームと同じタイトル・ラベル・種類・見出しにそろえる
+const KINDS: Record<IssueKind, { prefix: string; label: string; type: string; sections: (quoted: string) => string[] }> = {
+  bug: {
+    prefix: '[Bug]',
+    label: 'bug',
+    type: 'Bug',
+    sections: quoted => [
+      '### どこで起きましたか', '', 'わからない', '',
+      '### どの画面ですか', '', 'その他・わからない', '',
+      '### 何が起きましたか', '', 'アプリのフィードバックより:', '', quoted,
+    ],
+  },
+  feature: {
+    prefix: '[Feature]',
+    label: 'feature',
+    type: 'Feature',
+    sections: quoted => [
+      '### 困っていること・やりたいこと', '', 'アプリのフィードバックより:', '', quoted, '',
+      '### こうなってほしい', '', '_未記入（管理画面でフィードバックから作成）_',
+    ],
+  },
+  investigation: {
+    prefix: '[Investigate]',
+    label: 'question',
+    type: 'Task',
+    sections: quoted => [
+      '### 調べたいこと', '', 'アプリのフィードバックより:', '', quoted, '',
+      '### 何が分かれば完了か', '', '- [ ] ',
+    ],
+  },
 }
 
-// 「機能の要望」フォームと同じ見出しにそろえる。公開リポジトリなので送信者の情報は載せない
-function buildBody(content: string): string {
+function isIssueKind(value: unknown): value is IssueKind {
+  return value === 'bug' || value === 'feature' || value === 'investigation'
+}
+
+function buildTitle(kind: IssueKind, content: string): string {
+  const firstLine = content.trim().split('\n')[0]
+  const summary = firstLine.length > 40 ? `${firstLine.slice(0, 40)}…` : firstLine
+  return `${KINDS[kind].prefix} ${summary}`
+}
+
+// 公開リポジトリなので送信者の情報は載せない
+function buildBody(kind: IssueKind, content: string): string {
   const quoted = content.trim().split('\n').map(line => `> ${line}`).join('\n')
-  return [
-    '### 困っていること・やりたいこと',
-    '',
-    'アプリのフィードバックより:',
-    '',
-    quoted,
-    '',
-    '### こうなってほしい',
-    '',
-    '_未記入（管理画面でフィードバックから作成）_',
-  ].join('\n')
+  return KINDS[kind].sections(quoted).join('\n')
 }
 
 Deno.serve(async (req) => {
@@ -58,12 +86,16 @@ Deno.serve(async (req) => {
   if (role !== 'admin') return json({ error: '管理者のみ実行できます' }, 403)
 
   let feedbackId: string | undefined
+  let kind: unknown = 'feature'
   try {
-    feedbackId = (await req.json())?.feedbackId
+    const body = await req.json()
+    feedbackId = body?.feedbackId
+    kind = body?.kind ?? 'feature'
   } catch {
     // 下で弾く
   }
   if (!feedbackId) return json({ error: 'feedbackId がありません' }, 400)
+  if (!isIssueKind(kind)) return json({ error: 'kind が不正です' }, 400)
 
   const { data: feedback, error: readError } = await supabase
     .from('feedback')
@@ -84,10 +116,10 @@ Deno.serve(async (req) => {
       'User-Agent': 'pomoread-create-issue',
     },
     body: JSON.stringify({
-      title: buildTitle(feedback.content),
-      body: buildBody(feedback.content),
-      labels: ['feature'],
-      type: 'Feature',
+      title: buildTitle(kind, feedback.content),
+      body: buildBody(kind, feedback.content),
+      labels: [KINDS[kind].label],
+      type: KINDS[kind].type,
     }),
   })
   if (!res.ok) {

@@ -7,7 +7,8 @@ import { formatAuthor } from '../lib/format'
 import type { FieldErrors } from '../lib/validate'
 import { setAdminBooksCache, SUGGEST_BOOKS } from '../suggestBooks'
 import { useAuth } from '../auth/AuthContext'
-import { issueUrl } from '../lib/constants'
+import { issueUrl, ISSUE_KINDS } from '../lib/constants'
+import type { IssueKind } from '../lib/constants'
 import type { Profile, UserRole, SuggestBookDB, SuggestStatus, Feedback, FeedbackStatus } from '../types'
 import type { AdminAction } from '../types'
 import ConfirmDialog from './ConfirmDialog'
@@ -71,13 +72,14 @@ function issueNumberLabel(url: string): string {
   return m ? `#${m[1]}` : ''
 }
 
-// フィードバックの内容を「機能の要望」フォームに入れた状態で開く
-function feedbackIssueUrl(content: string): string {
+// フィードバックの内容を、選んだ種類のフォームに入れた状態で開く
+function feedbackIssueUrl(content: string, kind: IssueKind): string {
+  const { template, prefix, field } = ISSUE_KINDS[kind]
   const firstLine = content.trim().split('\n')[0]
   const summary = firstLine.length > 40 ? `${firstLine.slice(0, 40)}…` : firstLine
-  return issueUrl('2-feature.yml', {
-    title: `[Feature] ${summary}`,
-    problem: `アプリのフィードバックより:\n\n${content.trim().split('\n').map(l => `> ${l}`).join('\n')}`,
+  return issueUrl(template, {
+    title: `${prefix} ${summary}`,
+    [field]: `アプリのフィードバックより:\n\n${content.trim().split('\n').map(l => `> ${l}`).join('\n')}`,
   })
 }
 
@@ -319,17 +321,21 @@ export default function AdminTab() {
   }
 
   const [creatingIssueId, setCreatingIssueId] = useState<string | null>(null)
+  // フィードバックごとに選んだ Issue の種類（未選択は「機能の要望」）
+  const [issueKinds, setIssueKinds] = useState<Record<string, IssueKind>>({})
+  const issueKindOf = (id: string): IssueKind => issueKinds[id] ?? 'feature'
 
   const handleCreateIssue = (f: Feedback) => {
+    const kind = issueKindOf(f.id)
     confirm({
-      message: 'このフィードバックを GitHub の Issue（機能の要望）として作成しますか？公開リポジトリに投稿されます。送信者の情報は含めません。',
+      message: `このフィードバックを GitHub の Issue（${ISSUE_KINDS[kind].label}）として作成しますか？公開リポジトリに投稿されます。送信者の情報は含めません。`,
       confirmLabel: '作成する',
       danger: false,
       requireReason: false,
       onConfirm: async () => {
         setCreatingIssueId(f.id)
         try {
-          const url = await createIssueFromFeedback(f.id)
+          const url = await createIssueFromFeedback(f.id, kind)
           setFeedbackList(prev => prev.map(x => x.id === f.id ? { ...x, issueUrl: url } : x))
         } catch (e) {
           alert(`Issue を作成できませんでした: ${e instanceof Error ? e.message : String(e)}`)
@@ -556,17 +562,27 @@ export default function AdminTab() {
                           </a>
                         ) : (
                           <>
+                            <select
+                              className="feedback-issue-kind"
+                              value={issueKindOf(f.id)}
+                              onChange={e => setIssueKinds(prev => ({ ...prev, [f.id]: e.target.value as IssueKind }))}
+                              aria-label="Issue の種類"
+                            >
+                              {(Object.keys(ISSUE_KINDS) as IssueKind[]).map(k => (
+                                <option key={k} value={k}>{ISSUE_KINDS[k].label}</option>
+                              ))}
+                            </select>
                             <button
                               className="feedback-issue-btn"
                               disabled={creatingIssueId === f.id}
                               onClick={() => handleCreateIssue(f)}
-                              title="このフィードバックを、機能の要望として GitHub の Issue にする"
+                              title="このフィードバックを、選んだ種類の GitHub の Issue にする"
                             >
                               <IconBrandGithub size={13} /> {creatingIssueId === f.id ? '作成中...' : 'Issue にする'}
                             </button>
                             <a
                               className="feedback-issue-link"
-                              href={feedbackIssueUrl(f.content)}
+                              href={feedbackIssueUrl(f.content, issueKindOf(f.id))}
                               target="_blank"
                               rel="noopener noreferrer"
                               title="内容を入れた状態で GitHub の Issue 作成画面を開き、編集してから作成する"
