@@ -103,12 +103,8 @@ workflows:
     name: Android Release
     max_build_duration: 60
     instance_type: mac_mini_m2
-    triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: master
-          include: true
+    # Google Play の準備（端末確認・サービスアカウント）が済むまで自動実行しない。
+    # 再開するときは triggering（push / master）を戻す
     environment:
       android_signing:
         - keystore_reference
