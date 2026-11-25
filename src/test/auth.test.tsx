@@ -39,7 +39,7 @@ vi.mock('@capgo/capacitor-social-login', () => ({
 }))
 
 vi.mock('../lib/db', () => ({
-  migrateLocalDataToSupabase: vi.fn(),
+  migrateLocalDataToSupabase: vi.fn().mockResolvedValue(undefined),
   getMyProfile: vi.fn(),
   deleteAccount: vi.fn(),
 }))

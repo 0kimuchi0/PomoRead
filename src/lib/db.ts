@@ -388,18 +388,32 @@ export async function deleteAccount(): Promise<void> {
 
 // ---- migration ----
 
+// 未ログイン中に端末へ保存した本・記録を、ログインしたアカウントへ送る。
+// ログインのたびに呼ばれ、端末に残っている分だけを送る。送れた分だけ端末から消し、
+// 失敗した分は端末に残して次回のログインで再挑戦する。
+// 既にアカウントにある同じ ID の行は上書きしない（他の端末での更新や削除後の古い内容で戻さないため）。
 export async function migrateLocalDataToSupabase(userId: string): Promise<void> {
-  if (localStorage.getItem('pr_migrated') === '1') return
+  // 旧版は「端末ごとに 1 回だけ」移行し、このフラグで以後の移行を止めていた
+  localStorage.removeItem('pr_migrated')
 
   const books = lsGetBooks()
-  const sessions = lsGetSessions()
-
   if (books.length > 0) {
-    await supabase.from('books').upsert(books.map(b => toRow(b, userId)))
-  }
-  if (sessions.length > 0) {
-    await supabase.from('sessions').upsert(sessions.map(s => sessionToRow(s, userId)))
+    const { error } = await supabase
+      .from('books')
+      .upsert(books.map(b => toRow(b, userId)), { onConflict: 'id', ignoreDuplicates: true })
+    if (error) return
+    // 送信中に追加された分は消さない
+    const sent = new Set(books.map(b => b.id))
+    lsSaveBooks(lsGetBooks().filter(b => !sent.has(b.id)))
   }
 
-  localStorage.setItem('pr_migrated', '1')
+  const sessions = lsGetSessions()
+  if (sessions.length > 0) {
+    const { error } = await supabase
+      .from('sessions')
+      .upsert(sessions.map(s => sessionToRow(s, userId)), { onConflict: 'id', ignoreDuplicates: true })
+    if (error) return
+    const sent = new Set(sessions.map(s => s.id))
+    lsSaveSessions(lsGetSessions().filter(s => !sent.has(s.id)))
+  }
 }
