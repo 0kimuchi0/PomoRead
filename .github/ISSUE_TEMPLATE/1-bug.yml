@@ -13,6 +13,8 @@ body:
         - Web（pomoread.com）
         - 両方
         - わからない
+      # 確認せずに送られても誤った値にならないよう、「わからない」を最初の表示にする（並び順はそのまま）
+      default: 3
     validations:
       required: true
   - type: dropdown
@@ -27,6 +29,7 @@ body:
         - ログイン・新規登録
         - 管理画面
         - その他・わからない
+      default: 6
     validations:
       required: true
   - type: textarea
