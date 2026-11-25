@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { IconShield, IconUser, IconBan, IconRefresh, IconChartBar, IconBook, IconHistory, IconArrowBackUp, IconBookmark, IconPlus, IconTrash, IconPencil, IconDeviceFloppy, IconX, IconSearch, IconQuestionMark, IconMessage, IconCheck, IconEyeOff, IconBrandGithub } from '@tabler/icons-react'
-import { getAllProfiles, updateUserRole, updateUserBanned, getAllBooksAdmin, getAllSessionsAdmin, logAdminAction, getAdminActions, revertAdminAction, getSuggestBooks, addSuggestBook, updateSuggestBook, updateSuggestStatus, deleteSuggestBook, getFeedbackList, updateFeedbackStatus } from '../lib/db'
+import { getAllProfiles, updateUserRole, updateUserBanned, getAllBooksAdmin, getAllSessionsAdmin, logAdminAction, getAdminActions, revertAdminAction, getSuggestBooks, addSuggestBook, updateSuggestBook, updateSuggestStatus, deleteSuggestBook, getFeedbackList, updateFeedbackStatus, createIssueFromFeedback } from '../lib/db'
 import type { AdminBook, AdminSession } from '../lib/db'
 import { validateBookFields, hasErrors, formatCcode } from '../lib/validate'
 import { formatAuthor } from '../lib/format'
@@ -64,6 +64,12 @@ const SUGGEST_FILTERS: [SuggestStatus | 'all', string][] = [
   ['approved', '公開中'],
   ['hidden', '非表示'],
 ]
+
+// 「https://github.com/.../issues/12」→「#12」
+function issueNumberLabel(url: string): string {
+  const m = url.match(/\/issues\/(\d+)/)
+  return m ? `#${m[1]}` : ''
+}
 
 // フィードバックの内容を「機能の要望」フォームに入れた状態で開く
 function feedbackIssueUrl(content: string): string {
@@ -312,6 +318,28 @@ export default function AdminTab() {
     })
   }
 
+  const [creatingIssueId, setCreatingIssueId] = useState<string | null>(null)
+
+  const handleCreateIssue = (f: Feedback) => {
+    confirm({
+      message: 'このフィードバックを GitHub の Issue（機能の要望）として作成しますか？公開リポジトリに投稿されます。送信者の情報は含めません。',
+      confirmLabel: '作成する',
+      danger: false,
+      requireReason: false,
+      onConfirm: async () => {
+        setCreatingIssueId(f.id)
+        try {
+          const url = await createIssueFromFeedback(f.id)
+          setFeedbackList(prev => prev.map(x => x.id === f.id ? { ...x, issueUrl: url } : x))
+        } catch (e) {
+          alert(`Issue を作成できませんでした: ${e instanceof Error ? e.message : String(e)}`)
+        } finally {
+          setCreatingIssueId(null)
+        }
+      },
+    })
+  }
+
   const handleSuggestStatus = async (id: string, status: SuggestStatus) => {
     await updateSuggestStatus(id, status)
     const sb = await getSuggestBooks()
@@ -521,15 +549,33 @@ export default function AdminTab() {
                         <span className="admin-action-date">{formatDate(f.createdAt)}</span>
                       </div>
                       <p className="admin-feedback-content">{f.content}</p>
-                      <a
-                        className="feedback-issue-link"
-                        href={feedbackIssueUrl(f.content)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="このフィードバックの内容を入れた状態で、機能の要望の Issue 作成画面を開く"
-                      >
-                        <IconBrandGithub size={13} /> Issue にする
-                      </a>
+                      <div className="feedback-issue-row">
+                        {f.issueUrl ? (
+                          <a className="feedback-issue-link" href={f.issueUrl} target="_blank" rel="noopener noreferrer">
+                            <IconBrandGithub size={13} /> Issue {issueNumberLabel(f.issueUrl)} を開く
+                          </a>
+                        ) : (
+                          <>
+                            <button
+                              className="feedback-issue-btn"
+                              disabled={creatingIssueId === f.id}
+                              onClick={() => handleCreateIssue(f)}
+                              title="このフィードバックを、機能の要望として GitHub の Issue にする"
+                            >
+                              <IconBrandGithub size={13} /> {creatingIssueId === f.id ? '作成中...' : 'Issue にする'}
+                            </button>
+                            <a
+                              className="feedback-issue-link"
+                              href={feedbackIssueUrl(f.content)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="内容を入れた状態で GitHub の Issue 作成画面を開き、編集してから作成する"
+                            >
+                              編集してから作成
+                            </a>
+                          </>
+                        )}
+                      </div>
                       <div className="feedback-status-picker">
                         {([['pending', '未着手'], ['in_progress', '対応中'], ['done', '完了'], ['rejected', '却下']] as [FeedbackStatus, string][]).map(([val, label]) => (
                           <button

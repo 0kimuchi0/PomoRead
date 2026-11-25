@@ -33,6 +33,7 @@ interface SuggestBookRow {
 
 interface FeedbackRow {
   id: string; user_id: string | null; content: string; status: string; created_at: string
+  issue_url?: string | null
 }
 
 // ---- helpers ----
@@ -392,8 +393,26 @@ export async function getFeedbackList(): Promise<Feedback[]> {
       content: row.content,
       status: (row.status as FeedbackStatus) ?? 'pending',
       createdAt: row.created_at,
+      issueUrl: row.issue_url ?? null,
     }
   })
+}
+
+/** 管理者用: フィードバックを GitHub の Issue（機能の要望）として作成し、その URL を返す */
+export async function createIssueFromFeedback(feedbackId: string): Promise<string> {
+  const { data, error } = await supabase.functions.invoke('create-issue', { body: { feedbackId } })
+  if (error) {
+    // Edge Function が返したエラーメッセージがあれば、それを表示する
+    const ctx = (error as { context?: Response }).context
+    let message = error.message
+    if (ctx && typeof ctx.json === 'function') {
+      try { message = (await ctx.json()).error ?? message } catch { /* そのまま */ }
+    }
+    throw new Error(message)
+  }
+  const url = (data as { url?: string } | null)?.url
+  if (!url) throw new Error('Issue の URL を取得できませんでした')
+  return url
 }
 
 export async function updateFeedbackStatus(id: string, status: FeedbackStatus): Promise<void> {
