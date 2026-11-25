@@ -1105,12 +1105,16 @@ label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--color-
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ===== Splash screen ===== */
+/* body の safe-area 余白の分だけ 100dvh が #root からはみ出してスクロールできてしまうため、#root に合わせる */
 .app-splash {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  min-height: 100dvh; gap: 0;
+  height: 100%; gap: 0;
+  overflow: hidden;
+  touch-action: none;
   background: var(--color-bg);
   animation: splash-in 0.5s ease both;
 }
+#root:has(> .app-splash) { overflow: hidden; overscroll-behavior: none; }
 @keyframes splash-in {
   from { opacity: 0; transform: scale(0.92); }
   to   { opacity: 1; transform: scale(1); }
