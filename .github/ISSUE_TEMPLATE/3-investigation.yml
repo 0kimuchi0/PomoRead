@@ -1,0 +1,32 @@
+name: 調査・質問
+description: 実装の前に調べたいことや、技術的な質問をまとめます
+title: "[Investigate] "
+labels: ["question"]
+type: Task
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: 調べたいこと
+      placeholder: 例）Supabase の無料プランでバックアップを取る方法
+    validations:
+      required: true
+  - type: textarea
+    id: background
+    attributes:
+      label: 背景・きっかけ
+      placeholder: 例）無料プランには自分でダウンロードできるバックアップがない
+  - type: textarea
+    id: goal
+    attributes:
+      label: 何が分かれば完了か
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: 参考情報
+      description: リンク、関連する Issue（#番号）など
