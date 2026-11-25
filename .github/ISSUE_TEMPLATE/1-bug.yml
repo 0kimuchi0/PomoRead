@@ -1,0 +1,64 @@
+name: 不具合の報告
+description: 動かない・表示がおかしいなど、アプリの不具合を報告します
+title: "[Bug] "
+labels: ["bug"]
+type: Bug
+body:
+  - type: dropdown
+    id: platform
+    attributes:
+      label: どこで起きましたか
+      options:
+        - iPhone アプリ
+        - Web（pomoread.com）
+        - 両方
+        - わからない
+    validations:
+      required: true
+  - type: dropdown
+    id: screen
+    attributes:
+      label: どの画面ですか
+      options:
+        - タイマー
+        - 本棚
+        - 統計
+        - 設定
+        - ログイン・新規登録
+        - 管理画面
+        - その他・わからない
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 何が起きましたか
+      description: 見えたことをそのまま書いてください
+      placeholder: 例）本を登録すると、一覧に表示されない
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: どうすると起きますか
+      description: わかる範囲で大丈夫です
+      placeholder: |
+        1. 本棚を開く
+        2. 「追加」を押してタイトルを入力する
+        3. 保存する
+  - type: textarea
+    id: expected
+    attributes:
+      label: 本当はどうなってほしいですか
+      placeholder: 例）登録した本が一覧のいちばん下に出る
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: スクリーンショット・エラー表示
+      description: 画像はここに貼り付けられます。エラー画面の「エラーの詳細」もここに貼ってください
+  - type: input
+    id: version
+    attributes:
+      label: 端末・バージョン
+      description: わかれば記入してください
+      placeholder: 例）iPhone 15 / iOS 19.1 / ビルド 130、Windows / Chrome

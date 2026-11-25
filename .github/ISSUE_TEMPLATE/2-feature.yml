@@ -1,0 +1,55 @@
+name: 機能の要望
+description: 新しい機能や、今の機能の改善を提案します
+title: "[Feature] "
+labels: ["feature"]
+type: Feature
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 困っていること・やりたいこと
+      description: なぜ欲しいのかを書いておくと、あとで方法を選びやすくなります
+      placeholder: 例）サジェストがいつ登録されたのか分からず、古いものを整理できない
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: こうなってほしい
+      placeholder: |
+        - サジェスト一覧に登録日時を表示する
+        - 承認待ちだけを絞り込めるようにする
+    validations:
+      required: true
+  - type: dropdown
+    id: screen
+    attributes:
+      label: 関係する画面
+      multiple: true
+      options:
+        - タイマー
+        - 本棚
+        - 統計
+        - 設定
+        - ログイン・新規登録
+        - 管理画面
+        - データベース・裏側の仕組み
+        - その他
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 優先度
+      options:
+        - 高い（すぐに必要）
+        - ふつう
+        - 低い（いつかでよい）
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: ほかに考えた方法
+      description: あれば記入してください
+  - type: textarea
+    id: notes
+    attributes:
+      label: 補足・参考
+      description: 画像、参考になるアプリ、関連する Issue（#番号）など

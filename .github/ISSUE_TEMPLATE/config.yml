@@ -1,0 +1,6 @@
+# 白紙の Issue も作れるようにしておく（テンプレートに当てはまらないメモ用）
+blank_issues_enabled: true
+contact_links:
+  - name: アプリの使い方の質問・お問い合わせ
+    url: https://pomoread.com/privacy.html
+    about: アプリについての質問は、このページの最後にあるお問い合わせ先（support@pomoread.com）までメールでどうぞ
