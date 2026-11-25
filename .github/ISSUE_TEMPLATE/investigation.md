@@ -2,7 +2,7 @@
 name: 調査・質問 (Investigation)
 about: 実装前の調査や技術的な質問を行います
 title: "[Investigate] "
-labels: ["Issues: investigation"]
+labels: ["question"]
 assignees: ''
 
 ---

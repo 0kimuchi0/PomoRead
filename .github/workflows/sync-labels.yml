@@ -1,5 +1,7 @@
 name: Sync Labels
 
+# labels.json の内容に合わせて、リポジトリのラベルを作成・更新・削除する。
+# 外部パッケージは使わず、GitHub 公式の actions/github-script で処理する。
 on:
   push:
     paths:
@@ -7,37 +9,67 @@ on:
     branches:
       - master
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '変更せずに、行う予定の操作だけを表示する'
+        type: boolean
+        default: true
 
 permissions:
+  contents: read
   issues: write
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install labels-config
-        run: npm install -g @asagiri-design/labels-config
-
-      - name: Authenticate gh CLI
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: echo "$GH_TOKEN" | gh auth login --with-token
-
       - name: Sync labels
-        run: |
-          REPO="${{ github.repository }}"
-          OWNER=$(echo "$REPO" | cut -d'/' -f1)
-          REPO_NAME=$(echo "$REPO" | cut -d'/' -f2)
-          labels-config sync \
-            --owner "$OWNER" \
-            --repo "$REPO_NAME" \
-            --file labels.json \
-            --delete-extra \
-            --verbose
+        uses: actions/github-script@v7
+        env:
+          # push のときは実際に反映する。手動実行は既定で試運転のみ
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        with:
+          script: |
+            const fs = require('fs')
+            const dryRun = process.env.DRY_RUN === 'true'
+            const { owner, repo } = context.repo
+            const config = JSON.parse(fs.readFileSync('labels.json', 'utf8'))
+            const wanted = config.labels.flatMap(c => c.labels)
+
+            const names = new Set()
+            for (const l of wanted) {
+              const key = l.name.toLowerCase()
+              if (names.has(key)) throw new Error(`labels.json にラベル「${l.name}」が重複しています`)
+              names.add(key)
+            }
+
+            const existing = await github.paginate(github.rest.issues.listLabelsForRepo, { owner, repo, per_page: 100 })
+            const byName = new Map(existing.map(l => [l.name.toLowerCase(), l]))
+            const run = async (message, fn) => {
+              core.info(`${dryRun ? '[試運転] ' : ''}${message}`)
+              if (!dryRun) await fn()
+            }
+
+            for (const l of wanted) {
+              const color = l.color.replace(/^#/, '').toLowerCase()
+              const description = l.description ?? ''
+              const current = byName.get(l.name.toLowerCase())
+              if (!current) {
+                await run(`作成: ${l.name}`, () =>
+                  github.rest.issues.createLabel({ owner, repo, name: l.name, color, description }))
+              } else if (current.name !== l.name || current.color !== color || (current.description ?? '') !== description) {
+                await run(`更新: ${current.name}`, () =>
+                  github.rest.issues.updateLabel({ owner, repo, name: current.name, new_name: l.name, color, description }))
+              }
+            }
+
+            for (const l of existing) {
+              if (!names.has(l.name.toLowerCase())) {
+                await run(`削除: ${l.name}`, () =>
+                  github.rest.issues.deleteLabel({ owner, repo, name: l.name }))
+              }
+            }
+            core.info(dryRun ? '試運転のため、ラベルは変更していません' : '同期が完了しました')
