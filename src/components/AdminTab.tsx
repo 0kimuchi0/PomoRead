@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { IconShield, IconUser, IconBan, IconRefresh, IconChartBar, IconBook, IconHistory, IconArrowBackUp, IconBookmark, IconPlus, IconTrash, IconPencil, IconDeviceFloppy, IconX, IconSearch, IconQuestionMark, IconMessage, IconCheck, IconEyeOff, IconBrandGithub } from '@tabler/icons-react'
-import { getAllProfiles, updateUserRole, updateUserBanned, getAllBooksAdmin, getAllSessionsAdmin, logAdminAction, getAdminActions, revertAdminAction, getSuggestBooks, addSuggestBook, updateSuggestBook, updateSuggestStatus, deleteSuggestBook, getFeedbackList, updateFeedbackStatus, createIssueFromFeedback } from '../lib/db'
+import { getAllProfiles, updateUserRole, updateUserBanned, getAllBooksAdmin, getAllSessionsAdmin, logAdminAction, getAdminActions, revertAdminAction, getSuggestBooks, addSuggestBook, updateSuggestBook, updateSuggestStatus, deleteSuggestBook, getFeedbackList, updateFeedbackStatus } from '../lib/db'
 import type { AdminBook, AdminSession } from '../lib/db'
 import { validateBookFields, hasErrors, formatCcode } from '../lib/validate'
 import { formatAuthor } from '../lib/format'
@@ -8,7 +8,6 @@ import type { FieldErrors } from '../lib/validate'
 import { setAdminBooksCache, SUGGEST_BOOKS } from '../suggestBooks'
 import { useAuth } from '../auth/AuthContext'
 import { issueUrl, ISSUE_KINDS } from '../lib/constants'
-import { openAfter } from '../lib/openAfter'
 import type { IssueKind } from '../lib/constants'
 import type { Profile, UserRole, SuggestBookDB, SuggestStatus, Feedback, FeedbackStatus } from '../types'
 import type { AdminAction } from '../types'
@@ -322,28 +321,6 @@ export default function AdminTab() {
     })
   }
 
-  const [creatingIssueId, setCreatingIssueId] = useState<string | null>(null)
-  const handleCreateIssue = (f: Feedback, kind: IssueKind) => {
-    confirm({
-      message: `このフィードバックを GitHub の Issue（${ISSUE_KINDS[kind].label}）として作成しますか？公開リポジトリに投稿されます。送信者の情報は含めません。`,
-      confirmLabel: '作成する',
-      danger: false,
-      requireReason: false,
-      onConfirm: async () => {
-        setCreatingIssueId(f.id)
-        try {
-          // 作成できたら、その Issue を新しいタブで自動で開く
-          const url = await openAfter(() => createIssueFromFeedback(f.id, kind))
-          setFeedbackList(prev => prev.map(x => x.id === f.id ? { ...x, issueUrl: url } : x))
-        } catch (e) {
-          alert(`Issue を作成できませんでした: ${e instanceof Error ? e.message : String(e)}`)
-        } finally {
-          setCreatingIssueId(null)
-        }
-      },
-    })
-  }
-
   const handleSuggestStatus = async (id: string, status: SuggestStatus) => {
     await updateSuggestStatus(id, status)
     const sb = await getSuggestBooks()
@@ -559,11 +536,7 @@ export default function AdminTab() {
                             <IconBrandGithub size={13} /> Issue {issueNumberLabel(f.issueUrl)} を開く
                           </a>
                         ) : (
-                          <IssueMenu
-                            creating={creatingIssueId === f.id}
-                            onCreate={kind => handleCreateIssue(f, kind)}
-                            editUrl={kind => feedbackIssueUrl(f.content, kind)}
-                          />
+                          <IssueMenu formUrl={kind => feedbackIssueUrl(f.content, kind)} />
                         )}
                       </div>
                       <div className="feedback-status-picker">

@@ -1468,12 +1468,9 @@ label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--color-
 .feedback-issue-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 20px; border: 1.5px solid var(--accent); background: var(--accent-dim); color: var(--accent); cursor: pointer; }
 .feedback-issue-btn:disabled { opacity: 0.6; cursor: default; }
 .issue-menu { position: relative; display: inline-block; }
-.issue-menu-list { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 200px; padding: 4px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-sm); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
-.issue-menu-item { display: flex; align-items: center; gap: 4px; }
-.issue-menu-create { flex: 1; display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: none; border-radius: 6px; background: none; color: var(--color-text); font-size: 0.82rem; font-weight: 600; text-align: left; cursor: pointer; }
+.issue-menu-list { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 160px; display: flex; flex-direction: column; padding: 4px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-sm); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
+.issue-menu-create { display: flex; text-decoration: none; align-items: center; gap: 8px; padding: 7px 10px; border: none; border-radius: 6px; background: none; color: var(--color-text); font-size: 0.82rem; font-weight: 600; text-align: left; cursor: pointer; }
 .issue-menu-create:hover, .issue-menu-create:focus-visible { background: var(--accent-dim); outline: none; }
-.issue-menu-edit { display: inline-flex; align-items: center; gap: 3px; padding: 6px 8px; border-radius: 6px; color: var(--color-text-muted); font-size: 0.72rem; text-decoration: none; white-space: nowrap; }
-.issue-menu-edit:hover, .issue-menu-edit:focus-visible { background: var(--accent-dim); color: var(--accent); outline: none; }
 .issue-menu-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .issue-menu-dot--bug { background: #ef4444; }
 .issue-menu-dot--feature { background: #3b82f6; }

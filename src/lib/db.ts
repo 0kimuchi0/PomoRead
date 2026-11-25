@@ -1,5 +1,4 @@
 import type { Book, Session, Profile, UserRole, AdminAction, AdminActionType, SuggestBookDB, SuggestStatus, Feedback, FeedbackStatus } from '../types'
-import type { IssueKind } from './constants'
 import { getBooks as lsGetBooks, saveBooks as lsSaveBooks, getSessions as lsGetSessions, saveSessions as lsSaveSessions } from '../storage'
 import { supabase } from './supabase'
 
@@ -397,23 +396,6 @@ export async function getFeedbackList(): Promise<Feedback[]> {
       issueUrl: row.issue_url ?? null,
     }
   })
-}
-
-/** 管理者用: フィードバックを GitHub の Issue（不具合・機能の要望・調査）として作成し、その URL を返す */
-export async function createIssueFromFeedback(feedbackId: string, kind: IssueKind = 'feature'): Promise<string> {
-  const { data, error } = await supabase.functions.invoke('create-issue', { body: { feedbackId, kind } })
-  if (error) {
-    // Edge Function が返したエラーメッセージがあれば、それを表示する
-    const ctx = (error as { context?: Response }).context
-    let message = error.message
-    if (ctx && typeof ctx.json === 'function') {
-      try { message = (await ctx.json()).error ?? message } catch { /* そのまま */ }
-    }
-    throw new Error(message)
-  }
-  const url = (data as { url?: string } | null)?.url
-  if (!url) throw new Error('Issue の URL を取得できませんでした')
-  return url
 }
 
 export async function updateFeedbackStatus(id: string, status: FeedbackStatus): Promise<void> {
