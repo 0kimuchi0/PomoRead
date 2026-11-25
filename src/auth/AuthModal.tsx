@@ -96,6 +96,11 @@ export default function AuthModal({ onClose }: Props) {
                 <p>メール内のリンクをクリックしてアカウントを有効化してください。</p>
               </>
             )}
+            <p className="auth-done-note">
+              メールが届かない場合は、<br />
+              迷惑メールフォルダもご確認ください。<br />
+              差出人：no-reply@pomoread.com
+            </p>
             <button className="btn-primary" onClick={onClose}>閉じる</button>
           </div>
         ) : (
