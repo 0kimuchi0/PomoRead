@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { IconShield, IconUser, IconBan, IconRefresh, IconChartBar, IconBook, IconHistory, IconArrowBackUp, IconBookmark, IconPlus, IconTrash, IconPencil, IconDeviceFloppy, IconX, IconSearch, IconQuestionMark, IconMessage, IconCheck, IconEyeOff } from '@tabler/icons-react'
-import { getAllProfiles, updateUserRole, updateUserBanned, getAllBooksAdmin, getAllSessionsAdmin, logAdminAction, getAdminActions, revertAdminAction, getSuggestBooks, addSuggestBook, updateSuggestBook, updateSuggestStatus, deleteSuggestBook, getFeedbackList, updateFeedbackStatus } from '../lib/db'
+import { IconShield, IconUser, IconBan, IconRefresh, IconChartBar, IconBook, IconHistory, IconArrowBackUp, IconBookmark, IconPlus, IconTrash, IconPencil, IconDeviceFloppy, IconX, IconSearch, IconQuestionMark, IconMessage, IconCheck, IconEyeOff, IconBrandGithub } from '@tabler/icons-react'
+import { getAllProfiles, updateUserRole, updateUserBanned, getAllBooksAdmin, getAllSessionsAdmin, logAdminAction, getAdminActions, revertAdminAction, getSuggestBooks, addSuggestBook, updateSuggestBook, updateSuggestStatus, deleteSuggestBook, getFeedbackList, updateFeedbackStatus, createIssueFromFeedback } from '../lib/db'
 import type { AdminBook, AdminSession } from '../lib/db'
 import { validateBookFields, hasErrors, formatCcode } from '../lib/validate'
 import { formatAuthor } from '../lib/format'
 import type { FieldErrors } from '../lib/validate'
 import { setAdminBooksCache, SUGGEST_BOOKS } from '../suggestBooks'
 import { useAuth } from '../auth/AuthContext'
+import { issueUrl, ISSUE_KINDS } from '../lib/constants'
+import type { IssueKind } from '../lib/constants'
 import type { Profile, UserRole, SuggestBookDB, SuggestStatus, Feedback, FeedbackStatus } from '../types'
 import type { AdminAction } from '../types'
 import ConfirmDialog from './ConfirmDialog'
@@ -63,6 +65,23 @@ const SUGGEST_FILTERS: [SuggestStatus | 'all', string][] = [
   ['approved', '公開中'],
   ['hidden', '非表示'],
 ]
+
+// 「https://github.com/.../issues/12」→「#12」
+function issueNumberLabel(url: string): string {
+  const m = url.match(/\/issues\/(\d+)/)
+  return m ? `#${m[1]}` : ''
+}
+
+// フィードバックの内容を、選んだ種類のフォームに入れた状態で開く
+function feedbackIssueUrl(content: string, kind: IssueKind): string {
+  const { template, prefix, field } = ISSUE_KINDS[kind]
+  const firstLine = content.trim().split('\n')[0]
+  const summary = firstLine.length > 40 ? `${firstLine.slice(0, 40)}…` : firstLine
+  return issueUrl(template, {
+    title: `${prefix} ${summary}`,
+    [field]: `アプリのフィードバックより:\n\n${content.trim().split('\n').map(l => `> ${l}`).join('\n')}`,
+  })
+}
 
 interface PendingAction {
   message: string
@@ -301,6 +320,32 @@ export default function AdminTab() {
     })
   }
 
+  const [creatingIssueId, setCreatingIssueId] = useState<string | null>(null)
+  // フィードバックごとに選んだ Issue の種類（未選択は「機能の要望」）
+  const [issueKinds, setIssueKinds] = useState<Record<string, IssueKind>>({})
+  const issueKindOf = (id: string): IssueKind => issueKinds[id] ?? 'feature'
+
+  const handleCreateIssue = (f: Feedback) => {
+    const kind = issueKindOf(f.id)
+    confirm({
+      message: `このフィードバックを GitHub の Issue（${ISSUE_KINDS[kind].label}）として作成しますか？公開リポジトリに投稿されます。送信者の情報は含めません。`,
+      confirmLabel: '作成する',
+      danger: false,
+      requireReason: false,
+      onConfirm: async () => {
+        setCreatingIssueId(f.id)
+        try {
+          const url = await createIssueFromFeedback(f.id, kind)
+          setFeedbackList(prev => prev.map(x => x.id === f.id ? { ...x, issueUrl: url } : x))
+        } catch (e) {
+          alert(`Issue を作成できませんでした: ${e instanceof Error ? e.message : String(e)}`)
+        } finally {
+          setCreatingIssueId(null)
+        }
+      },
+    })
+  }
+
   const handleSuggestStatus = async (id: string, status: SuggestStatus) => {
     await updateSuggestStatus(id, status)
     const sb = await getSuggestBooks()
@@ -334,6 +379,10 @@ export default function AdminTab() {
           <button className="admin-refresh-btn" onClick={load} title="更新">
             <IconRefresh size={16} />
           </button>
+          <a className="help-btn" href={issueUrl()} target="_blank" rel="noopener noreferrer" title="GitHub の Issue 一覧を開く">
+            <IconBrandGithub size={15} />
+            Issue
+          </a>
           <button className="help-btn" onClick={() => setShowHelp(true)}>
             <IconQuestionMark size={15} />
             使い方
@@ -506,6 +555,43 @@ export default function AdminTab() {
                         <span className="admin-action-date">{formatDate(f.createdAt)}</span>
                       </div>
                       <p className="admin-feedback-content">{f.content}</p>
+                      <div className="feedback-issue-row">
+                        {f.issueUrl ? (
+                          <a className="feedback-issue-link" href={f.issueUrl} target="_blank" rel="noopener noreferrer">
+                            <IconBrandGithub size={13} /> Issue {issueNumberLabel(f.issueUrl)} を開く
+                          </a>
+                        ) : (
+                          <>
+                            <select
+                              className="feedback-issue-kind"
+                              value={issueKindOf(f.id)}
+                              onChange={e => setIssueKinds(prev => ({ ...prev, [f.id]: e.target.value as IssueKind }))}
+                              aria-label="Issue の種類"
+                            >
+                              {(Object.keys(ISSUE_KINDS) as IssueKind[]).map(k => (
+                                <option key={k} value={k}>{ISSUE_KINDS[k].label}</option>
+                              ))}
+                            </select>
+                            <button
+                              className="feedback-issue-btn"
+                              disabled={creatingIssueId === f.id}
+                              onClick={() => handleCreateIssue(f)}
+                              title="このフィードバックを、選んだ種類の GitHub の Issue にする"
+                            >
+                              <IconBrandGithub size={13} /> {creatingIssueId === f.id ? '作成中...' : 'Issue にする'}
+                            </button>
+                            <a
+                              className="feedback-issue-link"
+                              href={feedbackIssueUrl(f.content, issueKindOf(f.id))}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="内容を入れた状態で GitHub の Issue 作成画面を開き、編集してから作成する"
+                            >
+                              編集してから作成
+                            </a>
+                          </>
+                        )}
+                      </div>
                       <div className="feedback-status-picker">
                         {([['pending', '未着手'], ['in_progress', '対応中'], ['done', '完了'], ['rejected', '却下']] as [FeedbackStatus, string][]).map(([val, label]) => (
                           <button

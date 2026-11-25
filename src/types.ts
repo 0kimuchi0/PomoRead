@@ -66,6 +66,8 @@ export interface Feedback {
   content: string
   status: FeedbackStatus
   createdAt: string
+  /** このフィードバックから作成した GitHub Issue の URL */
+  issueUrl?: string | null
 }
 
 export interface AdminAction {

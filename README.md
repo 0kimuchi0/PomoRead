@@ -11,6 +11,17 @@
 - **テーマ** — ライト / ダーク / システム設定に対応
 - **管理者パネル** — ユーザー管理・BAN・ロール変更・操作履歴（管理者のみ）
 
+## 不具合の報告・要望
+
+GitHub の Issue から受け付けています（フォームに沿って入力できます）。
+
+- [不具合を報告する](https://github.com/daiki0828/PomoRead/issues/new?template=1-bug.yml)
+- [機能を要望する](https://github.com/daiki0828/PomoRead/issues/new?template=2-feature.yml)
+- [調査・質問を立てる](https://github.com/daiki0828/PomoRead/issues/new?template=3-investigation.yml)
+- [Issue 一覧](https://github.com/daiki0828/PomoRead/issues)
+
+アプリの使い方についての質問は、support@pomoread.com までメールでお問い合わせください。
+
 ## 技術スタック
 
 | カテゴリ | 技術 |
@@ -32,8 +43,8 @@
 ### 1. リポジトリのクローン
 
 ```bash
-git clone https://github.com/0kimuchi0/reading-pomodoro.git
-cd reading-pomodoro
+git clone https://github.com/daiki0828/PomoRead.git
+cd PomoRead
 npm install
 ```
 
