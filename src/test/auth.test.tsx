@@ -53,6 +53,11 @@ beforeEach(() => {
   })
 })
 
+// AuthProvider はロック外で処理するため onAuthStateChange の処理を setTimeout で遅らせる。その完了を待つ
+async function flushAuthEvents() {
+  for (let i = 0; i < 3; i++) await new Promise(r => setTimeout(r, 0))
+}
+
 function wrapper({ children }: { children: React.ReactNode }) {
   return <AuthProvider>{children}</AuthProvider>
 }
@@ -305,6 +310,7 @@ describe('PASSWORD_RECOVERY と socialLoginInitError', () => {
 
     await act(async () => {
       await fireAuthState?.('PASSWORD_RECOVERY', null)
+      await flushAuthEvents()
     })
 
     expect(result.current.passwordRecoveryMode).toBe(true)
@@ -316,6 +322,7 @@ describe('PASSWORD_RECOVERY と socialLoginInitError', () => {
 
     await act(async () => {
       await fireAuthState?.('PASSWORD_RECOVERY', null)
+      await flushAuthEvents()
     })
     expect(result.current.passwordRecoveryMode).toBe(true)
 
@@ -324,6 +331,40 @@ describe('PASSWORD_RECOVERY と socialLoginInitError', () => {
     })
 
     expect(result.current.passwordRecoveryMode).toBe(false)
+  })
+
+  it('PASSWORD_RECOVERY イベントでリンクのユーザーがログイン状態になる', async () => {
+    mocks.isNativePlatform.mockReturnValue(false)
+    const { result } = renderHook(() => useAuth(), { wrapper })
+
+    await act(async () => {
+      await fireAuthState?.('PASSWORD_RECOVERY', { user: { id: 'user-recover-1' } })
+      await flushAuthEvents()
+    })
+
+    expect(result.current.user?.id).toBe('user-recover-1')
+  })
+
+  it('startPasswordRecovery で passwordRecoveryMode が true になる（アプリのディープリンク用）', () => {
+    mocks.isNativePlatform.mockReturnValue(false)
+    const { result } = renderHook(() => useAuth(), { wrapper })
+
+    act(() => {
+      result.current.startPasswordRecovery()
+    })
+
+    expect(result.current.passwordRecoveryMode).toBe(true)
+  })
+
+  it('コールバックは Supabase の処理を待たずにすぐ戻る（ロック保持中のデッドロック防止）', async () => {
+    mocks.isNativePlatform.mockReturnValue(false)
+    vi.mocked(getMyProfile).mockImplementation(() => new Promise(() => {}))
+    renderHook(() => useAuth(), { wrapper })
+
+    const ret = (fireAuthState as unknown as (e: string, s: unknown) => unknown)('USER_UPDATED', { user: { id: 'user-1' } })
+
+    expect(ret).toBeUndefined()
+    await act(async () => { await flushAuthEvents() })
   })
 
   it('SocialLogin init 失敗後に signInWithGoogle が日本語エラーを返す', async () => {
@@ -370,6 +411,7 @@ describe('admin role loading', () => {
 
     await act(async () => {
       await fireAuthState?.('SIGNED_IN', { user: { id: 'user-admin-123' } })
+      await flushAuthEvents()
     })
 
     expect(result.current.role).toBe('admin')
@@ -383,6 +425,7 @@ describe('admin role loading', () => {
 
     await act(async () => {
       await fireAuthState?.('SIGNED_IN', { user: { id: 'user-123' } })
+      await flushAuthEvents()
     })
 
     expect(result.current.role).toBeNull()
@@ -455,6 +498,7 @@ describe('BAN ハンドリング', () => {
 
     await act(async () => {
       await fireAuthState?.('SIGNED_IN', { user: { id: 'user-banned-123' } })
+      await flushAuthEvents()
     })
 
     expect(result.current.bannedError).toBe('このアカウントは利用が停止されています。')
@@ -476,6 +520,7 @@ describe('BAN ハンドリング', () => {
 
     await act(async () => {
       await fireAuthState?.('SIGNED_IN', { user: { id: 'user-banned-123' } })
+      await flushAuthEvents()
     })
     expect(result.current.bannedError).not.toBeNull()
 

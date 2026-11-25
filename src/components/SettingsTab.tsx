@@ -86,7 +86,7 @@ export default function SettingsTab({ theme, onThemeChange, user, onOpenAuth }: 
 
   return (
     <div className="settings-tab">
-      {passwordRecoveryMode && (
+      {(passwordRecoveryMode || passwordSuccess) && (
         <section className="settings-section settings-section--recovery">
           <h2 className="settings-section-title">
             <IconKey size={18} />
