@@ -14,6 +14,7 @@ import type { Profile, UserRole, SuggestBookDB, SuggestStatus, Feedback, Feedbac
 import type { AdminAction } from '../types'
 import ConfirmDialog from './ConfirmDialog'
 import HelpModal from './HelpModal'
+import IssueMenu from './IssueMenu'
 import type { HelpItem } from './HelpModal'
 
 const ADMIN_HELP: HelpItem[] = [
@@ -322,12 +323,7 @@ export default function AdminTab() {
   }
 
   const [creatingIssueId, setCreatingIssueId] = useState<string | null>(null)
-  // フィードバックごとに選んだ Issue の種類（未選択は「機能の要望」）
-  const [issueKinds, setIssueKinds] = useState<Record<string, IssueKind>>({})
-  const issueKindOf = (id: string): IssueKind => issueKinds[id] ?? 'feature'
-
-  const handleCreateIssue = (f: Feedback) => {
-    const kind = issueKindOf(f.id)
+  const handleCreateIssue = (f: Feedback, kind: IssueKind) => {
     confirm({
       message: `このフィードバックを GitHub の Issue（${ISSUE_KINDS[kind].label}）として作成しますか？公開リポジトリに投稿されます。送信者の情報は含めません。`,
       confirmLabel: '作成する',
@@ -563,39 +559,11 @@ export default function AdminTab() {
                             <IconBrandGithub size={13} /> Issue {issueNumberLabel(f.issueUrl)} を開く
                           </a>
                         ) : (
-                          <>
-                            <div className="issue-kind-picker" role="radiogroup" aria-label="Issue の種類">
-                              {(Object.keys(ISSUE_KINDS) as IssueKind[]).map(k => (
-                                <button
-                                  key={k}
-                                  type="button"
-                                  role="radio"
-                                  aria-checked={issueKindOf(f.id) === k}
-                                  className={`issue-kind-btn issue-kind-btn--${k}${issueKindOf(f.id) === k ? ' active' : ''}`}
-                                  onClick={() => setIssueKinds(prev => ({ ...prev, [f.id]: k }))}
-                                >
-                                  {ISSUE_KINDS[k].label}
-                                </button>
-                              ))}
-                            </div>
-                            <button
-                              className="feedback-issue-btn"
-                              disabled={creatingIssueId === f.id}
-                              onClick={() => handleCreateIssue(f)}
-                              title="このフィードバックを、選んだ種類の GitHub の Issue にする"
-                            >
-                              <IconBrandGithub size={13} /> {creatingIssueId === f.id ? '作成中...' : 'Issue にする'}
-                            </button>
-                            <a
-                              className="feedback-issue-link"
-                              href={feedbackIssueUrl(f.content, issueKindOf(f.id))}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="内容を入れた状態で GitHub の Issue 作成画面を開き、編集してから作成する"
-                            >
-                              編集してから作成
-                            </a>
-                          </>
+                          <IssueMenu
+                            creating={creatingIssueId === f.id}
+                            onCreate={kind => handleCreateIssue(f, kind)}
+                            editUrl={kind => feedbackIssueUrl(f.content, kind)}
+                          />
                         )}
                       </div>
                       <div className="feedback-status-picker">

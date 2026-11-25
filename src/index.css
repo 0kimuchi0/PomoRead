@@ -1467,20 +1467,17 @@ label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--color-
 .feedback-issue-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .feedback-issue-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 20px; border: 1.5px solid var(--accent); background: var(--accent-dim); color: var(--accent); cursor: pointer; }
 .feedback-issue-btn:disabled { opacity: 0.6; cursor: default; }
-.issue-kind-picker { display: inline-flex; gap: 4px; flex-wrap: wrap; }
-.issue-kind-btn { font-size: 0.75rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; border: 1.5px solid var(--color-border); background: var(--color-bg); color: var(--color-text-muted); cursor: pointer; opacity: 0.6; transition: all 0.15s; }
-.issue-kind-btn:hover, .issue-kind-btn.active { opacity: 1; }
-.issue-kind-btn--bug.active, .issue-kind-btn--bug:hover                     { border-color: #ef4444; background: #fef2f2; color: #991b1b; }
-.issue-kind-btn--feature.active, .issue-kind-btn--feature:hover             { border-color: #3b82f6; background: #eff6ff; color: #1e40af; }
-.issue-kind-btn--investigation.active, .issue-kind-btn--investigation:hover { border-color: #d97706; background: #fffbeb; color: #92400e; }
-[data-theme="dark"] .issue-kind-btn--bug.active, [data-theme="dark"] .issue-kind-btn--bug:hover                     { background: #3b0000; color: #fca5a5; }
-[data-theme="dark"] .issue-kind-btn--feature.active, [data-theme="dark"] .issue-kind-btn--feature:hover             { background: #0b1d3a; color: #93c5fd; }
-[data-theme="dark"] .issue-kind-btn--investigation.active, [data-theme="dark"] .issue-kind-btn--investigation:hover { background: #2d1f00; color: #fcd34d; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .issue-kind-btn--bug.active, :root:not([data-theme="light"]) .issue-kind-btn--bug:hover                     { background: #3b0000; color: #fca5a5; }
-  :root:not([data-theme="light"]) .issue-kind-btn--feature.active, :root:not([data-theme="light"]) .issue-kind-btn--feature:hover             { background: #0b1d3a; color: #93c5fd; }
-  :root:not([data-theme="light"]) .issue-kind-btn--investigation.active, :root:not([data-theme="light"]) .issue-kind-btn--investigation:hover { background: #2d1f00; color: #fcd34d; }
-}
+.issue-menu { position: relative; display: inline-block; }
+.issue-menu-list { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 200px; padding: 4px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-sm); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
+.issue-menu-item { display: flex; align-items: center; gap: 4px; }
+.issue-menu-create { flex: 1; display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: none; border-radius: 6px; background: none; color: var(--color-text); font-size: 0.82rem; font-weight: 600; text-align: left; cursor: pointer; }
+.issue-menu-create:hover, .issue-menu-create:focus-visible { background: var(--accent-dim); outline: none; }
+.issue-menu-edit { display: inline-flex; align-items: center; gap: 3px; padding: 6px 8px; border-radius: 6px; color: var(--color-text-muted); font-size: 0.72rem; text-decoration: none; white-space: nowrap; }
+.issue-menu-edit:hover, .issue-menu-edit:focus-visible { background: var(--accent-dim); color: var(--accent); outline: none; }
+.issue-menu-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.issue-menu-dot--bug { background: #ef4444; }
+.issue-menu-dot--feature { background: #3b82f6; }
+.issue-menu-dot--investigation { background: #d97706; }
 a.help-btn { text-decoration: none; }
 .feedback-status-btn { font-size: 0.78rem; font-weight: 600; padding: 4px 12px; border-radius: 20px; border: 1.5px solid var(--color-border); background: var(--color-bg); color: var(--color-text-muted); cursor: pointer; opacity: 0.5; transition: all 0.15s; }
 .feedback-status-btn:hover, .feedback-status-btn.active { opacity: 1; }
