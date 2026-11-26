@@ -46,6 +46,14 @@ PR を作ったら、毎回ラベルとマイルストーンを付ける（`mcp_
   - 本番反映済み: 本番への反映が承認されると、`deploy.yml` の `project` ジョブが、今回反映した版に含まれる PR を移す（`.github/scripts/move-released-to-done.sh`）。閉じた Issue もここに移る
   - `project` ジョブは GitHub の Secrets の `PROJECT_TOKEN`（プロジェクトを読み書きできるトークン）を使う
 
+### Issue の作り方
+
+- Claude が Issue を作るときは、**Type・ラベル・マイルストーン**を付ける（`mcp__github__issue_write` の `type`・`labels`・`milestone`）
+  - Type は 3 つ: `Task`（作業）・`Bug`（不具合）・`Feature`（機能の要望）。Issue テンプレートと同じ考え方で選ぶ（不具合の報告 → Bug、機能の要望 → Feature、調査・質問 → Task）
+  - Issue の Fields（独自の項目）は、このリポジトリにはない。優先度や期限が必要になったら、プロジェクト「PomoRead」に項目を足す
+- Issue に対応する PR を作るときは、PR の説明の「関連タスク」に **`Closes #番号`** を書く。Issue の Development 欄に PR がつながり、マージすると Issue が自動で閉じる
+- 大きな作業は、**親の Issue と子の Issue（Sub-issues）**に分ける（`mcp__github__issue_write` の `parent_issue_number`、または `mcp__github__sub_issue_write`）。先にやる必要がある Issue があるときは、Relationships の Blocked by でつなぐ
+
 ### スマホで承認・却下する
 
 GitHub Mobile アプリを入れておくと、承認待ちになったときに通知が届き、そこから承認・却下できる。
