@@ -100,6 +100,21 @@ async function sendPush(rows: FeedbackRow[], admin: Admin, config: ApnsConfig): 
   return results.some(([, r]) => r === 'sent')
 }
 
+// RLS を通さずに読み書きするためのキー。新しい形式（SUPABASE_SECRET_KEYS）と従来の形式の両方に対応する
+function adminKey(): string | undefined {
+  const keys = Deno.env.get('SUPABASE_SECRET_KEYS')
+  if (keys) {
+    try {
+      const parsed = JSON.parse(keys) as Record<string, string>
+      const key = parsed.default ?? Object.values(parsed)[0]
+      if (key) return key
+    } catch {
+      // 従来のキーを使う
+    }
+  }
+  return Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
@@ -125,7 +140,9 @@ Deno.serve(async (req) => {
   if (!mailReady && !pushConfig) return json({ error: '通知先（メール・プッシュ通知）が設定されていません' }, 500)
 
   // まだ知らせていないものを「知らせた」に変えつつ取り出す（1つの UPDATE なので、同時に呼ばれても二重に送らない）
-  const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+  const serviceKey = adminKey()
+  if (!serviceKey) return json({ error: '管理用のキーが見つかりません' }, 500)
+  const admin = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey)
   const { data, error } = await admin
     .from('feedback')
     .update({ notified_at: new Date().toISOString() })
