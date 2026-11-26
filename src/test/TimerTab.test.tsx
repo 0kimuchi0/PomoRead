@@ -74,13 +74,26 @@ describe('TimerTab の長時間放置', () => {
   })
   afterEach(() => { vi.useRealTimers() })
 
-  it('休憩まで終わるほど離れていたら、集中を1回だけ記録して止まる', () => {
+  it('休憩まで終わるほど離れていたら、集中を1回だけ記録し、戻った時刻から次の集中を始める', () => {
     const onSessionComplete = startWithBook()
     jumpAndReturn(8 * 60 * 60 * 1000)
     expect(onSessionComplete).toHaveBeenCalledTimes(1)
     expect(screen.getByText('集中', { selector: '.phase-badge' })).toBeInTheDocument()
     expect(screen.getByText('25:00')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /スタート/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /一時停止/ })).toBeInTheDocument()
+    // 表示は秒の切り替わりの少しあと（10ms）に更新されるので、少し多めに進める
+    act(() => { vi.advanceTimersByTime(60 * 1000 + 20) })
+    expect(screen.getByText('24:00')).toBeInTheDocument()
+  })
+
+  it('休憩が終わった少しあとに戻っても、次の集中は戻った時刻から数える', () => {
+    const onSessionComplete = startWithBook()
+    // 集中は 10:25、休憩は 10:30 に終わる。10:31 に戻る
+    jumpAndReturn(31 * 60 * 1000)
+    expect(onSessionComplete).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('集中', { selector: '.phase-badge' })).toBeInTheDocument()
+    expect(screen.getByText('25:00')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /一時停止/ })).toBeInTheDocument()
   })
 })
 
@@ -96,7 +109,10 @@ describe('TimerTab の通知', () => {
     startWithBook()
     expect(notify.requestTimerNotificationPermission).toHaveBeenCalledTimes(1)
     await act(async () => {})
-    expect(notify.scheduleTimerNotification).toHaveBeenCalledWith('focus', new Date(2026, 10, 26, 10, 25, 0).getTime())
+    // アプリが裏にいても休憩の終わりを知らせられるよう、休憩の終わりもあわせて予約する
+    expect(notify.scheduleTimerNotification).toHaveBeenCalledWith(
+      'focus', new Date(2026, 10, 26, 10, 25, 0).getTime(), new Date(2026, 10, 26, 10, 30, 0).getTime(),
+    )
   })
 
   it('集中が終わったら終わったことを知らせ、休憩の終わりを予約し直す', async () => {

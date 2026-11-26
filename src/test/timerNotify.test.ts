@@ -24,6 +24,18 @@ describe('timerNotify（アプリ）', () => {
     })
   })
 
+  it('集中の終わりと一緒に、休憩の終わりも予約できる', async () => {
+    const focusEnd = new Date(2026, 10, 26, 10, 25).getTime()
+    const breakEnd = new Date(2026, 10, 26, 10, 30).getTime()
+    await scheduleTimerNotification('focus', focusEnd, breakEnd)
+    expect(ln.schedule).toHaveBeenCalledWith({
+      notifications: [
+        expect.objectContaining({ id: 1001, title: '集中時間が終わりました', schedule: expect.objectContaining({ at: new Date(focusEnd) }) }),
+        expect.objectContaining({ id: 1002, title: '休憩が終わりました', schedule: expect.objectContaining({ at: new Date(breakEnd) }) }),
+      ],
+    })
+  })
+
   it('許可されていなければ予約しない', async () => {
     ln.checkPermissions.mockResolvedValueOnce({ display: 'denied' })
     await scheduleTimerNotification('break', Date.now() + 1000)
@@ -32,7 +44,7 @@ describe('timerNotify（アプリ）', () => {
 
   it('取り消し', async () => {
     await cancelTimerNotification()
-    expect(ln.cancel).toHaveBeenCalledWith({ notifications: [{ id: 1001 }] })
+    expect(ln.cancel).toHaveBeenCalledWith({ notifications: [{ id: 1001 }, { id: 1002 }] })
   })
 })
 
