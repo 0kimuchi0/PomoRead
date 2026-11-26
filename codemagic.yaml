@@ -5,9 +5,11 @@ workflows:
     instance_type: mac_mini_m2
     integrations:
       app_store_connect: Codemagic
+    # master への push では自動でビルドしない。本番への反映が承認されたあと、
+    # GitHub Actions（deploy.yml の ios ジョブ）が、承認したコミットのタグ release-<番号> を指定して API でビルドを始める。
+    # PR では、iOS のチェックを満たすためだけに動く（中身はすぐ終わる）
     triggering:
       events:
-        - push
         - pull_request
       branch_patterns:
         - pattern: master
