@@ -38,7 +38,11 @@ PR を作ったら、毎回ラベルとマイルストーンを付ける（`mcp_
   - `Android 版の配信`（番号 1）: Google Play で配信するまで
   - `App Store 公開`（番号 2）: TestFlight から App Store で一般公開するまで
   - `保守・運用`（番号 3）: 依存パッケージの更新、CI の改善、期限のあるものの対応、日々の改善・修正
-- **プロジェクト**: GitHub Projects の「PomoRead」（daiki0828 の個人のプロジェクト、非公開）に、開いた Issue と PR が自動で入る（Auto-add）。閉じた・マージしたものは自動で Done に移る。Claude が操作する必要はない
+- **プロジェクト**: GitHub Projects の「PomoRead」（daiki0828 の個人のプロジェクト、非公開）。列は自動で動くので、Claude が操作する必要はない
+  - Todo: 開いた Issue と PR が自動で入る（Auto-add）
+  - 承認待ち: PR をマージすると移る（プロジェクトの「Pull request merged」の設定）。master には入ったが、本番にはまだ出ていない
+  - Done: 本番への反映が承認されると、`deploy.yml` の `project` ジョブが、今回反映した版に含まれる PR を移す（`.github/scripts/move-released-to-done.sh`）。閉じた Issue もここに移る
+  - `project` ジョブは GitHub の Secrets の `PROJECT_TOKEN`（プロジェクトを読み書きできるトークン）を使う
 
 ### スマホで承認・却下する
 
