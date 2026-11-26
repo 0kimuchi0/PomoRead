@@ -34,7 +34,7 @@ function jumpAndReturn(ms: number) {
 
 describe('TimerTab のタイマー', () => {
   beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] })
     vi.setSystemTime(new Date(2026, 10, 26, 10, 0, 0))
   })
   afterEach(() => { vi.useRealTimers() })
@@ -69,7 +69,7 @@ describe('TimerTab のタイマー', () => {
 
 describe('TimerTab の長時間放置', () => {
   beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] })
     vi.setSystemTime(new Date(2026, 10, 26, 10, 0, 0))
   })
   afterEach(() => { vi.useRealTimers() })
@@ -86,7 +86,7 @@ describe('TimerTab の長時間放置', () => {
 
 describe('TimerTab の通知', () => {
   beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] })
     vi.setSystemTime(new Date(2026, 10, 26, 10, 0, 0))
     Object.values(notify).forEach(f => f.mockClear())
   })
@@ -111,5 +111,33 @@ describe('TimerTab の通知', () => {
     startWithBook()
     fireEvent.click(screen.getByRole('button', { name: /一時停止/ }))
     expect(notify.cancelTimerNotification).toHaveBeenCalled()
+  })
+})
+
+describe('TimerTab の秒の精度', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] })
+    vi.setSystemTime(new Date(2026, 10, 26, 10, 0, 0))
+  })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('ちょうど1秒で表示が切り替わる', () => {
+    startWithBook()
+    act(() => { vi.advanceTimersByTime(999) })
+    expect(screen.getByText('25:00')).toBeInTheDocument()
+    act(() => { vi.advanceTimersByTime(20) })
+    expect(screen.getByText('24:59')).toBeInTheDocument()
+  })
+
+  it('一時停止と再開をくり返しても、1秒未満の端数を失わない', () => {
+    startWithBook()
+    for (let i = 0; i < 3; i++) {
+      act(() => { vi.advanceTimersByTime(600) })
+      fireEvent.click(screen.getByRole('button', { name: /一時停止/ }))
+      fireEvent.click(screen.getByRole('button', { name: /スタート/ }))
+    }
+    // 動いていた合計は 1.8 秒なので、あと 0.2 秒少しで 24:58 になる
+    act(() => { vi.advanceTimersByTime(250) })
+    expect(screen.getByText('24:58')).toBeInTheDocument()
   })
 })
