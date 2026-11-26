@@ -19,6 +19,9 @@ import HelpModal from './HelpModal'
 import { toLocalDate } from '../lib/format'
 import { requestTimerNotificationPermission, scheduleTimerNotification, cancelTimerNotification, showTimerNotificationIfHidden } from '../lib/timerNotify'
 
+// 円のゲージの円周（半径 88）
+const RING_CIRCUMFERENCE = 2 * Math.PI * 88
+
 const TIMER_HELP = [
   {
     icon: <IconClock size={18} />,
@@ -94,6 +97,8 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
   const phaseRef = useRef<Phase>(phase)
   // 一時停止中の残り時間（ミリ秒）。秒に丸めると、止めるたびに1秒未満ずつずれるため、ミリ秒のまま持つ
   const pausedMsRef = useRef<number | null>(null)
+  // 円のゲージ。秒ごとではなく描画のたびに動かすため、React の描画を通さず直接書き換える
+  const ringRef = useRef<SVGCircleElement>(null)
 
   const selectableBooks = books.filter(b => b.status !== 'done')
   const selectedBook = selectableBooks.find(b => b.id === selectedBookId) ?? null
@@ -209,6 +214,34 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
     }
   }, [running])
 
+  const totalMs = (phase === 'focus' ? focusMin : breakMin) * 60 * 1000
+
+  // 動作中は、画面の描画のたびに残りミリ秒から円のゲージを動かす（秒ごとだと 1 秒ごとに止まって見える）
+  useEffect(() => {
+    if (!running) return
+    let frame = 0
+    const draw = () => {
+      const endAt = endAtRef.current
+      const ring = ringRef.current
+      if (endAt !== null && ring) {
+        const phaseMs = (phaseRef.current === 'focus' ? focusMin : breakMin) * 60 * 1000
+        ring.style.strokeDashoffset = String(RING_CIRCUMFERENCE * Math.min(1, Math.max(0, (endAt - Date.now()) / phaseMs)))
+      }
+      frame = requestAnimationFrame(draw)
+    }
+    draw()
+    return () => cancelAnimationFrame(frame)
+  }, [running, focusMin, breakMin])
+
+  // 止まっているときは、一時停止した位置（なければ表示中の残り秒）に合わせる
+  useEffect(() => {
+    if (running) return
+    const ring = ringRef.current
+    if (!ring) return
+    const leftMs = pausedMsRef.current ?? secondsLeft * 1000
+    ring.style.strokeDashoffset = String(RING_CIRCUMFERENCE * Math.min(1, Math.max(0, leftMs / totalMs)))
+  }, [running, secondsLeft, totalMs])
+
   const handleStart = () => {
     if (phase === 'focus' && !selectedBookId && selectableBooks.length > 0) return
     if (phase === 'focus' && selectedBookId) {
@@ -274,8 +307,6 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
 
   const minutes = Math.floor(secondsLeft / 60).toString().padStart(2, '0')
   const seconds = (secondsLeft % 60).toString().padStart(2, '0')
-  const total = phase === 'focus' ? focusMin * 60 : breakMin * 60
-  const progress = ((total - secondsLeft) / total) * 100
 
   return (
     <div className="timer-tab">
@@ -295,10 +326,10 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
           <svg className="timer-ring" viewBox="0 0 200 200">
             <circle cx="100" cy="100" r="88" className="ring-bg" />
             <circle
+              ref={ringRef}
               cx="100" cy="100" r="88"
               className={`ring-progress ${phase}`}
-              strokeDasharray={`${2 * Math.PI * 88}`}
-              strokeDashoffset={`${2 * Math.PI * 88 * (1 - progress / 100)}`}
+              strokeDasharray={`${RING_CIRCUMFERENCE}`}
             />
           </svg>
           <div className="timer-display">{minutes}:{seconds}</div>

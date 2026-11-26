@@ -157,3 +157,38 @@ describe('TimerTab の秒の精度', () => {
     expect(screen.getByText('24:58')).toBeInTheDocument()
   })
 })
+
+describe('TimerTab の円のゲージ', () => {
+  const CIRC = 2 * Math.PI * 88
+  const ringOffset = () => {
+    const el = document.querySelector('.ring-progress') as SVGCircleElement
+    return parseFloat(el.style.strokeDashoffset || el.getAttribute('stroke-dashoffset') || 'NaN')
+  }
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] })
+    vi.setSystemTime(new Date(2026, 10, 26, 10, 0, 0))
+  })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('秒の途中でも止まらずに進む', () => {
+    startWithBook()
+    act(() => { vi.advanceTimersByTime(500) })
+    // 25 分のうち 0.5 秒ぶん進んでいる（秒単位の更新だと、まだ 0 のまま）
+    expect(ringOffset()).toBeCloseTo(CIRC * (1500 - 0.5) / 1500, 1)
+    act(() => { vi.advanceTimersByTime(250) })
+    expect(ringOffset()).toBeCloseTo(CIRC * (1500 - 0.75) / 1500, 1)
+  })
+
+  it('一時停止したら、その位置で止まり、停止すると元に戻る', () => {
+    startWithBook()
+    act(() => { vi.advanceTimersByTime(30 * 1000 + 400) })
+    fireEvent.click(screen.getByRole('button', { name: /一時停止/ }))
+    const paused = ringOffset()
+    expect(paused).toBeCloseTo(CIRC * (1500 - 30.4) / 1500, 1)
+    act(() => { vi.advanceTimersByTime(10 * 1000) })
+    expect(ringOffset()).toBeCloseTo(paused, 5)
+    // 停止ボタン（アイコンだけのボタン）
+    fireEvent.click(document.querySelector('.timer-controls .btn-ghost') as HTMLElement)
+    expect(ringOffset()).toBeCloseTo(CIRC, 5)
+  })
+})

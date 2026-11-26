@@ -205,7 +205,7 @@ label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--color-
 }
 .timer-ring { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
 .ring-bg { fill: none; stroke: var(--color-border); stroke-width: 8; }
-.ring-progress { fill: none; stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 0.8s linear; }
+.ring-progress { fill: none; stroke-width: 8; stroke-linecap: round; }
 .ring-progress.focus { stroke: var(--accent); }
 .ring-progress.break { stroke: #2E9C6E; }
 .timer-display { font-size: 3.6rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
