@@ -8,7 +8,16 @@ const pn = vi.hoisted(() => ({
   register: vi.fn(() => Promise.resolve()),
   addListener: vi.fn((name: string, cb: (arg: unknown) => void) => { listeners[name] = cb; return Promise.resolve({ remove: vi.fn() }) }),
 }))
-const rpc = vi.hoisted(() => vi.fn(() => Promise.resolve({ error: null })))
+// 本物の supabase.rpc() と同じく、then() が呼ばれたとき（await など）に初めて送る
+const sent = vi.hoisted(() => [] as unknown[][])
+// 本物の PostgrestBuilder が thenable なので、わざと then を持たせて再現している
+const rpc = vi.hoisted(() => vi.fn((...args: unknown[]) => ({
+  // oxlint-disable-next-line unicorn/no-thenable
+  then(onFulfilled?: (v: { error: null }) => unknown, onRejected?: (e: unknown) => unknown) {
+    sent.push(args)
+    return Promise.resolve({ error: null }).then(onFulfilled, onRejected)
+  },
+})))
 
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => env.native, getPlatform: () => env.platform } }))
 vi.mock('@capacitor/push-notifications', () => ({ PushNotifications: pn }))
@@ -23,6 +32,7 @@ describe('adminPush', () => {
     localStorage.clear()
     Object.values(pn).forEach(f => f.mockClear())
     rpc.mockClear()
+    sent.length = 0
   })
 
   it('許可を取り、届いたトークンを今のユーザーの端末として登録する', async () => {
@@ -30,7 +40,7 @@ describe('adminPush', () => {
     expect(pn.requestPermissions).toHaveBeenCalled()
     expect(pn.register).toHaveBeenCalled()
     listeners.registration({ value: 'TOKEN1' })
-    expect(rpc).toHaveBeenCalledWith('register_push_token', { p_token: 'TOKEN1', p_platform: 'ios' })
+    expect(sent).toContainEqual(['register_push_token', { p_token: 'TOKEN1', p_platform: 'ios' }])
     expect(localStorage.getItem('pr_push_token')).toBe('TOKEN1')
   })
 
@@ -56,7 +66,7 @@ describe('adminPush', () => {
   it('ログアウト前に、この端末の登録を外す', async () => {
     localStorage.setItem('pr_push_token', 'TOKEN1')
     await unregisterAdminPush()
-    expect(rpc).toHaveBeenCalledWith('unregister_push_token', { p_token: 'TOKEN1' })
+    expect(sent).toContainEqual(['unregister_push_token', { p_token: 'TOKEN1' }])
     expect(localStorage.getItem('pr_push_token')).toBeNull()
   })
 })

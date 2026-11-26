@@ -24,7 +24,11 @@ export async function registerAdminPush(onOpenFeedback: () => void): Promise<() 
     const handles = await Promise.all([
       PushNotifications.addListener('registration', ({ value }) => {
         try { localStorage.setItem(TOKEN_KEY, value) } catch { /* 保存できなくても登録は続ける */ }
-        void supabase.rpc('register_push_token', { p_token: value, p_platform: 'ios' })
+        // supabase.rpc() は then()（await）されるまで送信しない。void で捨てると何も送られないので、必ず then する
+        supabase.rpc('register_push_token', { p_token: value, p_platform: 'ios' }).then(
+          ({ error }) => { if (error) console.warn('push token registration failed', error.message) },
+          () => { /* 通信の失敗は、次に起動したときの登録で取り戻す */ },
+        )
       }),
       PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => {
         if ((notification.data as { kind?: string } | undefined)?.kind === 'feedback') onOpenFeedback()
