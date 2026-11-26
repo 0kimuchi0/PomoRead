@@ -99,7 +99,7 @@ export default function AuthModal({ onClose }: Props) {
             <p className="auth-done-note">
               メールが届かない場合は、<br />
               迷惑メールフォルダもご確認ください。<br />
-              差出人：no-reply@pomoread.com
+              差出人：noreply@pomoread.com
             </p>
             <button className="btn-primary" onClick={onClose}>閉じる</button>
           </div>
