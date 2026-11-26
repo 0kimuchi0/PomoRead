@@ -13,6 +13,7 @@ import type { Profile, UserRole, SuggestBookDB, SuggestStatus, Feedback, Feedbac
 import type { AdminAction } from '../types'
 import ConfirmDialog from './ConfirmDialog'
 import HelpModal from './HelpModal'
+import { markFeedbackViewed, readFeedbackViewed } from '../lib/feedbackAlerts'
 import IssueMenu from './IssueMenu'
 import type { HelpItem } from './HelpModal'
 
@@ -93,7 +94,9 @@ interface PendingAction {
   onConfirm: (reason: string) => Promise<void>
 }
 
-export default function AdminTab() {
+export type AdminSection = 'users' | 'stats' | 'history' | 'suggests' | 'feedback'
+
+export default function AdminTab({ initialSection = 'users' }: { initialSection?: AdminSection } = {}) {
   const { user } = useAuth()
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [books, setBooks] = useState<AdminBook[]>([])
@@ -102,7 +105,7 @@ export default function AdminTab() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const loadingRef = useRef(false)
-  const [activeSection, setActiveSection] = useState<'users' | 'stats' | 'history' | 'suggests' | 'feedback'>('users')
+  const [activeSection, setActiveSection] = useState<AdminSection>(initialSection)
   const [feedbackList, setFeedbackList] = useState<Feedback[]>([])
   const [feedbackFilter, setFeedbackFilter] = useState<FeedbackStatus | 'all'>('all')
   const [showHelp, setShowHelp] = useState(false)
@@ -119,7 +122,7 @@ export default function AdminTab() {
   const [suggestEditErrors, setSuggestEditErrors] = useState<FieldErrors>({})
   const [pending, setPending] = useState<PendingAction | null>(null)
   const [viewedCount, setViewedCount] = useState(() => Number(localStorage.getItem('admin_history_viewed') ?? 0))
-  const [feedbackViewedCount, setFeedbackViewedCount] = useState(() => Number(localStorage.getItem('admin_feedback_viewed') ?? 0))
+  const [feedbackViewedCount, setFeedbackViewedCount] = useState(readFeedbackViewed)
 
   const userId = user?.id
   const load = useCallback(async () => {
@@ -137,14 +140,17 @@ export default function AdminTab() {
       setAdminBooksCache(sb, userId)
       setFeedbackList(fb)
       setViewedCount(prev => { const v = Math.min(prev, a.length); localStorage.setItem('admin_history_viewed', String(v)); return v })
-      setFeedbackViewedCount(prev => { const v = Math.min(prev, fb.length); localStorage.setItem('admin_feedback_viewed', String(v)); return v })
+      // 通知から開いたときは、フィードバックを見たことにする
+      const viewedFb = initialSection === 'feedback' ? fb.length : Math.min(readFeedbackViewed(), fb.length)
+      setFeedbackViewedCount(viewedFb)
+      markFeedbackViewed(viewedFb)
     } catch {
       setLoadError(true)
     } finally {
       setLoading(false)
       loadingRef.current = false
     }
-  }, [userId])
+  }, [userId, initialSection])
 
   // 管理データをサーバーから読み込む（外部とのやり取りなので effect から呼ぶ）
   // oxlint-disable-next-line react/set-state-in-effect
@@ -378,7 +384,7 @@ export default function AdminTab() {
         <button className={`admin-nav-btn${activeSection === 'suggests' ? ' active' : ''}`} onClick={() => setActiveSection('suggests')}>
           <IconBookmark size={16} /> サジェスト
         </button>
-        <button className={`admin-nav-btn${activeSection === 'feedback' ? ' active' : ''}`} onClick={() => { setActiveSection('feedback'); setFeedbackViewedCount(feedbackList.length); localStorage.setItem('admin_feedback_viewed', String(feedbackList.length)) }}>
+        <button className={`admin-nav-btn${activeSection === 'feedback' ? ' active' : ''}`} onClick={() => { setActiveSection('feedback'); setFeedbackViewedCount(feedbackList.length); markFeedbackViewed(feedbackList.length) }}>
           <IconMessage size={16} /> フィードバック
           {feedbackList.length > feedbackViewedCount && <span className="admin-history-badge">{feedbackList.length - feedbackViewedCount}</span>}
         </button>

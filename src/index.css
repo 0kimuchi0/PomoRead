@@ -1579,6 +1579,31 @@ a.help-btn { text-decoration: none; }
 }
 .banned-toast button:hover { opacity: 1; }
 
+/* 新しいフィードバックのお知らせ（管理者向け） */
+.feedback-toast {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+  width: min(420px, calc(100vw - 32px));
+  background: var(--color-surface); color: var(--color-text);
+  border: 1px solid var(--color-border); border-left: 4px solid var(--accent);
+  padding: 10px 12px; border-radius: var(--radius);
+  display: flex; align-items: center; gap: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  z-index: 2000;
+}
+.feedback-toast-icon { color: var(--accent); flex-shrink: 0; }
+.feedback-toast-text { display: flex; flex-direction: column; min-width: 0; flex: 1; font-size: 0.85rem; }
+.feedback-toast-text strong { font-size: 0.8rem; color: var(--accent); }
+[data-theme="dark"] .feedback-toast-text strong, [data-theme="dark"] .feedback-toast-icon { color: var(--accent-light); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .feedback-toast-text strong, :root:not([data-theme="light"]) .feedback-toast-icon { color: var(--accent-light); }
+}
+.feedback-toast-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feedback-toast-open { background: var(--accent); color: #fff; border: none; border-radius: var(--radius-sm); padding: 6px 12px; font-size: 0.8rem; font-weight: 600; flex-shrink: 0; }
+.feedback-toast-close { background: none; border: none; color: var(--color-text-muted, inherit); font-size: 1.1rem; opacity: 0.7; padding: 0 2px; flex-shrink: 0; }
+.feedback-toast-close:hover { opacity: 1; }
+.tab-badge { background: #EF4444; color: #fff; font-size: 0.68rem; font-weight: 700; border-radius: 999px; padding: 1px 6px; line-height: 1.4; }
+.admin-tab-btn.active .tab-badge { background: #fff; color: var(--accent); }
+
 /* ===== Tutorial ===== */
 /* 背景オーバーレイ */
 .tutorial-overlay {

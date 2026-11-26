@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { IconClock, IconBooks, IconChartBar, IconSettings, IconShield } from '@tabler/icons-react'
+import { IconClock, IconBooks, IconChartBar, IconSettings, IconShield, IconMessageCircle } from '@tabler/icons-react'
 import { SpeedInsights } from '@vercel/speed-insights/react'
 import { supabase } from './lib/supabase'
 import { APP_URL_SCHEME } from './lib/constants'
@@ -7,7 +7,9 @@ import TimerTab from './components/TimerTab'
 import BookshelfTab from './components/BookshelfTab'
 import StatsTab from './components/StatsTab'
 import SettingsTab from './components/SettingsTab'
-import AdminTab from './components/AdminTab'
+import AdminTab, { type AdminSection } from './components/AdminTab'
+import { useFeedbackAlerts } from './hooks/useFeedbackAlerts'
+import { registerAdminPush } from './lib/adminPush'
 import SyncIndicator from './components/SyncIndicator'
 import TutorialOverlay, { shouldShowTutorial } from './components/TutorialOverlay'
 import AuthModal from './auth/AuthModal'
@@ -36,6 +38,24 @@ function AppInner() {
   const [splashDone, setSplashDone] = useState(false)
   const [splashVisible, setSplashVisible] = useState(true)
   const [showTutorial, setShowTutorial] = useState(false)
+  // 管理タブを開くときの最初の画面。通知から開いたときはフィードバックにする（key を変えて開き直す）
+  const [adminView, setAdminView] = useState<{ section: AdminSection; key: number }>({ section: 'users', key: 0 })
+  const isAdmin = role === 'admin'
+  const { unread: feedbackUnread, alert: feedbackAlert, dismissAlert } = useFeedbackAlerts(isAdmin)
+
+  const openAdminFeedback = useCallback(() => {
+    setAdminView(v => ({ section: 'feedback', key: v.key + 1 }))
+    setTab('admin')
+  }, [])
+
+  // 管理者の iPhone では、フィードバックのプッシュ通知を受け取れるようにする
+  useEffect(() => {
+    if (!isAdmin || !user) return
+    let cleanup = () => {}
+    let cancelled = false
+    void registerAdminPush(openAdminFeedback).then(c => { if (cancelled) c(); else cleanup = c })
+    return () => { cancelled = true; cleanup() }
+  }, [isAdmin, user, openAdminFeedback])
 
   useEffect(() => {
     const t = setTimeout(() => setSplashDone(true), 2500)
@@ -237,6 +257,9 @@ function AppInner() {
             >
               <IconShield size={18} />
               管理
+              {feedbackUnread > 0 && (
+                <span className="tab-badge" aria-label={`未読のフィードバック ${feedbackUnread} 件`}>{feedbackUnread}</span>
+              )}
             </button>
           )}
           <button
@@ -275,11 +298,22 @@ function AppInner() {
             onSignOut={async () => { /* handled in SettingsTab via useAuth */ }}
           />
         )}
-        {tab === 'admin' && role === 'admin' && <AdminTab />}
+        {tab === 'admin' && role === 'admin' && <AdminTab key={adminView.key} initialSection={adminView.section} />}
       </main>
 
       {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
       {showTutorial && <TutorialOverlay onDone={() => setShowTutorial(false)} onTabChange={setTab} />}
+      {feedbackAlert && (
+        <div className="feedback-toast" role="status">
+          <IconMessageCircle size={18} className="feedback-toast-icon" />
+          <div className="feedback-toast-text">
+            <strong>新しいフィードバック</strong>
+            <span>{feedbackAlert.content.trim().split('\n')[0].slice(0, 60)}</span>
+          </div>
+          <button className="feedback-toast-open" onClick={() => { dismissAlert(); openAdminFeedback() }}>見る</button>
+          <button className="feedback-toast-close" onClick={dismissAlert} aria-label="閉じる">×</button>
+        </div>
+      )}
       {bannedError && (
         <div className="banned-toast">
           <span>{bannedError}</span>

@@ -4,6 +4,7 @@ const isNative = () => (window as any).Capacitor?.isNativePlatform?.() === true
 const isAndroid = () => (window as any).Capacitor?.getPlatform?.() === 'android'
 import { supabase } from '../lib/supabase'
 import { migrateLocalDataToSupabase, getMyProfile, deleteAccount } from '../lib/db'
+import { unregisterAdminPush } from '../lib/adminPush'
 import type { UserRole } from '../types'
 import { APP_URL_SCHEME } from '../lib/constants'
 
@@ -246,6 +247,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
+    // この端末にログアウトした人あての通知が届かないよう、先に登録を外す（待つのは最大 3 秒）
+    await Promise.race([unregisterAdminPush(), new Promise(r => setTimeout(r, 3000))])
     await supabase.auth.signOut()
   }
 
