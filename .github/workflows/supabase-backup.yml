@@ -127,28 +127,36 @@ jobs:
 
       - name: Restore
         run: |
+          # ログイン情報（auth）などの Supabase 管理のテーブルは、本番と使い捨て DB で版が違い列が合わないことがあるため、
+          # ここではアプリのデータ（public スキーマ）だけを取り出して復元する。バックアップ自体には全部入っている
+          awk '
+            /^COPY / { keep = ($2 ~ /^"?public"?\./); inblock = 1; if (keep) print; next }
+            inblock { if (keep) print; if ($0 == "\\.") inblock = 0; next }
+            /^SELECT pg_catalog\.setval/ { if ($0 ~ /"?public"?\./) print; next }
+            { print }
+          ' restore/data.sql > restore/data-public.sql
           # roles.sql は Supabase の管理用ロールも書き換えるため、使い捨て DB の管理者（supabase_admin）で流す
           DB=postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres
           psql "$DB" --quiet --single-transaction --variable ON_ERROR_STOP=1 \
             --file restore/roles.sql \
             --file restore/schema.sql \
             --command 'SET session_replication_role = replica' \
-            --file restore/data.sql > /dev/null
+            --file restore/data-public.sql > /dev/null
 
       - name: Check restored data
         run: |
-          DB=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          DB=postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres
           q() { psql "$DB" --tuples-only --no-align --command "$1"; }
           tables=$(q "select count(*) from pg_tables where schemaname = 'public'")
           filled=0
           for t in $(q "select tablename from pg_tables where schemaname = 'public'"); do
             [ "$(q "select exists (select 1 from public.\"$t\")")" = "t" ] && filled=$((filled + 1))
           done
-          users=$(q "select exists (select 1 from auth.users)")
           echo "public のテーブル: ${tables} 個（うちデータのあるもの: ${filled} 個）"
           test "$tables" -gt 0
           test "$filled" -gt 0
-          test "$users" = "t"
+          # auth のデータもバックアップに入っていること（中身は見ない）
+          grep -q '^COPY "\?auth"\?\."\?users"\? ' restore/data.sql
           echo "バックアップから復元できることを確認しました"
 
       - name: Clean up
