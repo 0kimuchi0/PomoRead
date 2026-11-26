@@ -19,6 +19,9 @@ import HelpModal from './HelpModal'
 import { toLocalDate } from '../lib/format'
 import { requestTimerNotificationPermission, scheduleTimerNotification, cancelTimerNotification, showTimerNotificationIfHidden } from '../lib/timerNotify'
 
+// 円のゲージの円周（半径 88）
+const RING_CIRCUMFERENCE = 2 * Math.PI * 88
+
 const TIMER_HELP = [
   {
     icon: <IconClock size={18} />,
@@ -94,6 +97,8 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
   const phaseRef = useRef<Phase>(phase)
   // 一時停止中の残り時間（ミリ秒）。秒に丸めると、止めるたびに1秒未満ずつずれるため、ミリ秒のまま持つ
   const pausedMsRef = useRef<number | null>(null)
+  // 円のゲージ。秒ごとではなく描画のたびに動かすため、React の描画を通さず直接書き換える
+  const ringRef = useRef<SVGCircleElement>(null)
 
   const selectableBooks = books.filter(b => b.status !== 'done')
   const selectedBook = selectableBooks.find(b => b.id === selectedBookId) ?? null
@@ -124,7 +129,7 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
     onRunningChange?.(running)
   }, [running, onRunningChange])
 
-  // フェーズを切り替え、次のフェーズの終了時刻を返す。endedAt は終わったフェーズの終了時刻
+  // フェーズを切り替え、次のフェーズの終了時刻を endAtRef に入れる。endedAt は終わったフェーズの終了時刻
   const finishPhase = useCallback((endedAt: number) => {
     if (phaseRef.current === 'focus') {
       if (selectedBookId) {
@@ -143,15 +148,20 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
       setSecondsLeft(breakMin * 60)
       endAtRef.current = endedAt + breakMin * 60 * 1000
       showTimerNotificationIfHidden('focus')
+      // 次のフェーズ（休憩）の終わりを通知で予約する（アプリのみ）
+      void scheduleTimerNotification('break', endAtRef.current)
     } else {
+      // 次の集中は、休憩が終わった時刻ではなく今から数える。
+      // アプリが裏にいる間に休憩が終わっていたら、戻った時刻から集中を始める（読んでいない時間を集中に数えない）
+      const focusEndAt = Math.max(endedAt, Date.now()) + focusMin * 60 * 1000
       phaseRef.current = 'focus'
       setPhase('focus')
       setSecondsLeft(focusMin * 60)
-      endAtRef.current = endedAt + focusMin * 60 * 1000
+      endAtRef.current = focusEndAt
       showTimerNotificationIfHidden('break')
+      // 集中の終わりと、そのあとの休憩の終わりを予約する（アプリのみ）
+      void scheduleTimerNotification('focus', focusEndAt, focusEndAt + breakMin * 60 * 1000)
     }
-    // 次のフェーズの終わりを通知で予約する（アプリのみ）
-    void scheduleTimerNotification(phaseRef.current, endAtRef.current)
   }, [selectedBookId, books, focusMin, breakMin, onSessionComplete])
 
   // 画面を離れてタイマーが消えるときは、予約した通知も取り消す
@@ -159,11 +169,9 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
 
   // タイマーの更新処理からは常に最新の finishPhase を呼ぶ
   const finishPhaseRef = useRef(finishPhase)
-  const focusMinRef = useRef(focusMin)
   useEffect(() => {
     finishPhaseRef.current = finishPhase
-    focusMinRef.current = focusMin
-  }, [finishPhase, focusMin])
+  }, [finishPhase])
 
   useEffect(() => {
     if (!running) return
@@ -176,20 +184,14 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
         return
       }
       finishPhaseRef.current(endAt)
-      const nextEndAt = endAtRef.current
-      if (nextEndAt === null) return
-      const nextLeft = Math.ceil((nextEndAt - Date.now()) / 1000)
-      if (nextLeft > 0) {
-        setSecondsLeft(nextLeft)
-        return
+      // 集中のあとの休憩まで終わるほど離れていたら、休憩も終わらせて、今から次の集中を始める。
+      // 次の集中は今から数えるので、何時間離れていても記録される集中は 1 回だけ
+      const breakEndAt = endAtRef.current
+      if (phaseRef.current === 'break' && breakEndAt !== null && breakEndAt <= Date.now()) {
+        finishPhaseRef.current(breakEndAt)
       }
-      // 次のフェーズまで終わるほど長く離れていたら、自動で続けずに止める（放置中の集中を何回も記録しない）
-      endAtRef.current = null
-      void cancelTimerNotification()
-      phaseRef.current = 'focus'
-      setRunning(false)
-      setPhase('focus')
-      setSecondsLeft(focusMinRef.current * 60)
+      const nextEndAt = endAtRef.current
+      if (nextEndAt !== null) setSecondsLeft(Math.max(0, Math.ceil((nextEndAt - Date.now()) / 1000)))
     }
     // 表示の秒が切り替わる瞬間に合わせて次の更新を予約する（一定間隔だと最大で間隔ぶん表示が遅れるため）
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -212,6 +214,34 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
     }
   }, [running])
 
+  const totalMs = (phase === 'focus' ? focusMin : breakMin) * 60 * 1000
+
+  // 動作中は、画面の描画のたびに残りミリ秒から円のゲージを動かす（秒ごとだと 1 秒ごとに止まって見える）
+  useEffect(() => {
+    if (!running) return
+    let frame = 0
+    const draw = () => {
+      const endAt = endAtRef.current
+      const ring = ringRef.current
+      if (endAt !== null && ring) {
+        const phaseMs = (phaseRef.current === 'focus' ? focusMin : breakMin) * 60 * 1000
+        ring.style.strokeDashoffset = String(RING_CIRCUMFERENCE * Math.min(1, Math.max(0, (endAt - Date.now()) / phaseMs)))
+      }
+      frame = requestAnimationFrame(draw)
+    }
+    draw()
+    return () => cancelAnimationFrame(frame)
+  }, [running, focusMin, breakMin])
+
+  // 止まっているときは、一時停止した位置（なければ表示中の残り秒）に合わせる
+  useEffect(() => {
+    if (running) return
+    const ring = ringRef.current
+    if (!ring) return
+    const leftMs = pausedMsRef.current ?? secondsLeft * 1000
+    ring.style.strokeDashoffset = String(RING_CIRCUMFERENCE * Math.min(1, Math.max(0, leftMs / totalMs)))
+  }, [running, secondsLeft, totalMs])
+
   const handleStart = () => {
     if (phase === 'focus' && !selectedBookId && selectableBooks.length > 0) return
     if (phase === 'focus' && selectedBookId) {
@@ -223,9 +253,13 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
     endAtRef.current = endAt
     setRunning(true)
     const endingPhase = phase
+    // 集中なら、そのあとの休憩の終わりもあわせて予約する（アプリが裏にいても休憩の終わりを知らせるため）
+    const followingBreakEndAt = endingPhase === 'focus' ? endAt + breakMin * 60 * 1000 : undefined
     void requestTimerNotificationPermission().then(() => {
       // 許可を待つ間に一時停止・停止されていたら予約しない
-      if (endAtRef.current === endAt) void scheduleTimerNotification(endingPhase, endAt)
+      if (endAtRef.current !== endAt) return
+      if (followingBreakEndAt === undefined) void scheduleTimerNotification(endingPhase, endAt)
+      else void scheduleTimerNotification(endingPhase, endAt, followingBreakEndAt)
     })
   }
 
@@ -273,8 +307,6 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
 
   const minutes = Math.floor(secondsLeft / 60).toString().padStart(2, '0')
   const seconds = (secondsLeft % 60).toString().padStart(2, '0')
-  const total = phase === 'focus' ? focusMin * 60 : breakMin * 60
-  const progress = ((total - secondsLeft) / total) * 100
 
   return (
     <div className="timer-tab">
@@ -294,10 +326,10 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
           <svg className="timer-ring" viewBox="0 0 200 200">
             <circle cx="100" cy="100" r="88" className="ring-bg" />
             <circle
+              ref={ringRef}
               cx="100" cy="100" r="88"
               className={`ring-progress ${phase}`}
-              strokeDasharray={`${2 * Math.PI * 88}`}
-              strokeDashoffset={`${2 * Math.PI * 88 * (1 - progress / 100)}`}
+              strokeDasharray={`${RING_CIRCUMFERENCE}`}
             />
           </svg>
           <div className="timer-display">{minutes}:{seconds}</div>

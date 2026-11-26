@@ -7,10 +7,14 @@ import { LocalNotifications } from '@capacitor/local-notifications'
 export type TimerPhase = 'focus' | 'break'
 
 const NOTIFICATION_ID = 1001
+// 集中の終わりと一緒に予約する、そのあとの休憩の終わりの通知
+const FOLLOWING_BREAK_ID = 1002
+const ALL_IDS = [{ id: NOTIFICATION_ID }, { id: FOLLOWING_BREAK_ID }]
 
 const MESSAGES: Record<TimerPhase, { title: string; body: string }> = {
   focus: { title: '集中時間が終わりました', body: '休憩が始まりました。少し目を休めましょう。' },
-  break: { title: '休憩が終わりました', body: '次の集中が始まりました。' },
+  // アプリが裏にいる間に休憩が終わったときは、アプリに戻った時刻から次の集中が始まる
+  break: { title: '休憩が終わりました', body: '次の集中を始めましょう。' },
 }
 
 const isNative = () => Capacitor.isNativePlatform()
@@ -29,20 +33,30 @@ export async function requestTimerNotificationPermission(): Promise<void> {
   }
 }
 
-/** endingPhase が endAt に終わることを予約する（アプリのみ。前の予約は置き換える） */
-export async function scheduleTimerNotification(endingPhase: TimerPhase, endAt: number): Promise<void> {
+/**
+ * endingPhase が endAt に終わることを予約する（アプリのみ。前の予約は置き換える）。
+ * followingBreakEndAt を渡すと、そのあとの休憩の終わりも予約する。
+ * アプリが裏にいる間は JavaScript が止まり、集中の終わりで休憩の終わりを予約し直せないため。
+ */
+export async function scheduleTimerNotification(endingPhase: TimerPhase, endAt: number, followingBreakEndAt?: number): Promise<void> {
   if (!isNative()) return
   try {
-    await LocalNotifications.cancel({ notifications: [{ id: NOTIFICATION_ID }] })
+    await LocalNotifications.cancel({ notifications: ALL_IDS })
     const { display } = await LocalNotifications.checkPermissions()
     if (display !== 'granted') return
-    await LocalNotifications.schedule({
-      notifications: [{
-        id: NOTIFICATION_ID,
-        ...MESSAGES[endingPhase],
-        schedule: { at: new Date(endAt), allowWhileIdle: true },
-      }],
-    })
+    const notifications = [{
+      id: NOTIFICATION_ID,
+      ...MESSAGES[endingPhase],
+      schedule: { at: new Date(endAt), allowWhileIdle: true },
+    }]
+    if (followingBreakEndAt !== undefined) {
+      notifications.push({
+        id: FOLLOWING_BREAK_ID,
+        ...MESSAGES.break,
+        schedule: { at: new Date(followingBreakEndAt), allowWhileIdle: true },
+      })
+    }
+    await LocalNotifications.schedule({ notifications })
   } catch {
     // 通知が使えなくてもタイマーは動かす
   }
@@ -52,7 +66,7 @@ export async function scheduleTimerNotification(endingPhase: TimerPhase, endAt: 
 export async function cancelTimerNotification(): Promise<void> {
   if (!isNative()) return
   try {
-    await LocalNotifications.cancel({ notifications: [{ id: NOTIFICATION_ID }] })
+    await LocalNotifications.cancel({ notifications: ALL_IDS })
   } catch {
     // 何もしない
   }

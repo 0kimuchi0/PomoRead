@@ -74,13 +74,26 @@ describe('TimerTab の長時間放置', () => {
   })
   afterEach(() => { vi.useRealTimers() })
 
-  it('休憩まで終わるほど離れていたら、集中を1回だけ記録して止まる', () => {
+  it('休憩まで終わるほど離れていたら、集中を1回だけ記録し、戻った時刻から次の集中を始める', () => {
     const onSessionComplete = startWithBook()
     jumpAndReturn(8 * 60 * 60 * 1000)
     expect(onSessionComplete).toHaveBeenCalledTimes(1)
     expect(screen.getByText('集中', { selector: '.phase-badge' })).toBeInTheDocument()
     expect(screen.getByText('25:00')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /スタート/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /一時停止/ })).toBeInTheDocument()
+    // 表示は秒の切り替わりの少しあと（10ms）に更新されるので、少し多めに進める
+    act(() => { vi.advanceTimersByTime(60 * 1000 + 20) })
+    expect(screen.getByText('24:00')).toBeInTheDocument()
+  })
+
+  it('休憩が終わった少しあとに戻っても、次の集中は戻った時刻から数える', () => {
+    const onSessionComplete = startWithBook()
+    // 集中は 10:25、休憩は 10:30 に終わる。10:31 に戻る
+    jumpAndReturn(31 * 60 * 1000)
+    expect(onSessionComplete).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('集中', { selector: '.phase-badge' })).toBeInTheDocument()
+    expect(screen.getByText('25:00')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /一時停止/ })).toBeInTheDocument()
   })
 })
 
@@ -96,7 +109,10 @@ describe('TimerTab の通知', () => {
     startWithBook()
     expect(notify.requestTimerNotificationPermission).toHaveBeenCalledTimes(1)
     await act(async () => {})
-    expect(notify.scheduleTimerNotification).toHaveBeenCalledWith('focus', new Date(2026, 10, 26, 10, 25, 0).getTime())
+    // アプリが裏にいても休憩の終わりを知らせられるよう、休憩の終わりもあわせて予約する
+    expect(notify.scheduleTimerNotification).toHaveBeenCalledWith(
+      'focus', new Date(2026, 10, 26, 10, 25, 0).getTime(), new Date(2026, 10, 26, 10, 30, 0).getTime(),
+    )
   })
 
   it('集中が終わったら終わったことを知らせ、休憩の終わりを予約し直す', async () => {
@@ -139,5 +155,40 @@ describe('TimerTab の秒の精度', () => {
     // 動いていた合計は 1.8 秒なので、あと 0.2 秒少しで 24:58 になる
     act(() => { vi.advanceTimersByTime(250) })
     expect(screen.getByText('24:58')).toBeInTheDocument()
+  })
+})
+
+describe('TimerTab の円のゲージ', () => {
+  const CIRC = 2 * Math.PI * 88
+  const ringOffset = () => {
+    const el = document.querySelector('.ring-progress') as SVGCircleElement
+    return parseFloat(el.style.strokeDashoffset || el.getAttribute('stroke-dashoffset') || 'NaN')
+  }
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance'] })
+    vi.setSystemTime(new Date(2026, 10, 26, 10, 0, 0))
+  })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('秒の途中でも止まらずに進む', () => {
+    startWithBook()
+    act(() => { vi.advanceTimersByTime(500) })
+    // 25 分のうち 0.5 秒ぶん進んでいる（秒単位の更新だと、まだ 0 のまま）
+    expect(ringOffset()).toBeCloseTo(CIRC * (1500 - 0.5) / 1500, 1)
+    act(() => { vi.advanceTimersByTime(250) })
+    expect(ringOffset()).toBeCloseTo(CIRC * (1500 - 0.75) / 1500, 1)
+  })
+
+  it('一時停止したら、その位置で止まり、停止すると元に戻る', () => {
+    startWithBook()
+    act(() => { vi.advanceTimersByTime(30 * 1000 + 400) })
+    fireEvent.click(screen.getByRole('button', { name: /一時停止/ }))
+    const paused = ringOffset()
+    expect(paused).toBeCloseTo(CIRC * (1500 - 30.4) / 1500, 1)
+    act(() => { vi.advanceTimersByTime(10 * 1000) })
+    expect(ringOffset()).toBeCloseTo(paused, 5)
+    // 停止ボタン（アイコンだけのボタン）
+    fireEvent.click(document.querySelector('.timer-controls .btn-ghost') as HTMLElement)
+    expect(ringOffset()).toBeCloseTo(CIRC, 5)
   })
 })
