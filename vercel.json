@@ -3,5 +3,12 @@
     "deploymentEnabled": {
       "master": false
     }
-  }
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "staging.pomoread.com" }],
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    }
+  ]
 }
