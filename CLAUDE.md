@@ -50,7 +50,9 @@ PR を作ったら、毎回ラベルとマイルストーンを付ける（`mcp_
 
 - Claude が Issue を作るときは、**Type・ラベル・マイルストーン**を付ける（`mcp__github__issue_write` の `type`・`labels`・`milestone`）
   - Type は 3 つ: `Task`（作業）・`Bug`（不具合）・`Feature`（機能の要望）。Issue テンプレートと同じ考え方で選ぶ（不具合の報告 → Bug、機能の要望 → Feature、調査・質問 → Task）
-  - Issue の Fields（独自の項目）は、このリポジトリにはない。優先度や期限が必要になったら、プロジェクト「PomoRead」に項目を足す
+  - Issue の Fields（独自の項目）として、日付の **`開始日`**（作業を始める予定の日）と **`終了日`**（終わらせる予定の日）がある（daiki0828 のアカウントの設定で作ったもの。見えるのはリポジトリに書き込める人だけ）
+    - 予定が分かっている Issue を作るときは、`mcp__github__issue_write` の `issue_fields` で入れる（例: `[{"field_name": "開始日", "value": "2026-12-01"}]`）
+    - プロジェクト「PomoRead」の表やロードマップのビューにも出せる。ロードマップでは、View → Dates で開始日・終了日を選ぶ
 - Issue に対応する PR を作るときは、PR の説明の「関連タスク」に **`Closes #番号`** を書く。Issue の Development 欄に PR がつながり、マージすると Issue が自動で閉じる
 - 大きな作業は、**親の Issue と子の Issue（Sub-issues）**に分ける（`mcp__github__issue_write` の `parent_issue_number`、または `mcp__github__sub_issue_write`）。先にやる必要がある Issue があるときは、Relationships の Blocked by でつなぐ
 
