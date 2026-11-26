@@ -19,6 +19,7 @@
     "@capacitor/cli": "^8.4.2",
     "@capacitor/core": "^8.4.2",
     "@capacitor/ios": "^8.4.1",
+    "@capacitor/local-notifications": "^8.3.1",
     "@capgo/capacitor-social-login": "^8.3.38",
     "@supabase/supabase-js": "^2.110.8",
     "@tabler/icons-react": "^3.45.0",

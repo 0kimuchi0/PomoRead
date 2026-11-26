@@ -17,6 +17,7 @@ import {
 import type { Book, Session } from '../types'
 import HelpModal from './HelpModal'
 import { toLocalDate } from '../lib/format'
+import { requestTimerNotificationPermission, scheduleTimerNotification, cancelTimerNotification, showTimerNotificationIfHidden } from '../lib/timerNotify'
 
 const TIMER_HELP = [
   {
@@ -147,13 +148,20 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
       setPhase('break')
       setSecondsLeft(breakMin * 60)
       endAtRef.current = endedAt + breakMin * 60 * 1000
+      showTimerNotificationIfHidden('focus')
     } else {
       phaseRef.current = 'focus'
       setPhase('focus')
       setSecondsLeft(focusMin * 60)
       endAtRef.current = endedAt + focusMin * 60 * 1000
+      showTimerNotificationIfHidden('break')
     }
+    // 次のフェーズの終わりを通知で予約する（アプリのみ）
+    void scheduleTimerNotification(phaseRef.current, endAtRef.current)
   }, [selectedBookId, books, focusMin, breakMin, onSessionComplete])
+
+  // 画面を離れてタイマーが消えるときは、予約した通知も取り消す
+  useEffect(() => () => { void cancelTimerNotification() }, [])
 
   // タイマーの setInterval からは常に最新の finishPhase を呼ぶ
   const finishPhaseRef = useRef(finishPhase)
@@ -183,6 +191,7 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
       }
       // 次のフェーズまで終わるほど長く離れていたら、自動で続けずに止める（放置中の集中を何回も記録しない）
       endAtRef.current = null
+      void cancelTimerNotification()
       phaseRef.current = 'focus'
       setRunning(false)
       setPhase('focus')
@@ -206,8 +215,14 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
       const book = books.find(b => b.id === selectedBookId)
       if (book?.status === 'want') onStatusChange(selectedBookId, 'reading')
     }
-    endAtRef.current = Date.now() + secondsLeft * 1000
+    const endAt = Date.now() + secondsLeft * 1000
+    endAtRef.current = endAt
     setRunning(true)
+    const endingPhase = phase
+    void requestTimerNotificationPermission().then(() => {
+      // 許可を待つ間に一時停止・停止されていたら予約しない
+      if (endAtRef.current === endAt) void scheduleTimerNotification(endingPhase, endAt)
+    })
   }
 
   const handlePause = () => {
@@ -215,11 +230,13 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
       setSecondsLeft(Math.max(1, Math.ceil((endAtRef.current - Date.now()) / 1000)))
     }
     endAtRef.current = null
+    void cancelTimerNotification()
     setRunning(false)
   }
 
   const handleStop = () => {
     endAtRef.current = null
+    void cancelTimerNotification()
     phaseRef.current = 'focus'
     setRunning(false)
     setPhase('focus')
@@ -239,6 +256,7 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
     setBreakMin(newBreak)
     setShowSettings(false)
     endAtRef.current = null
+    void cancelTimerNotification()
     phaseRef.current = 'focus'
     setRunning(false)
     setPhase('focus')
