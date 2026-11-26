@@ -127,7 +127,8 @@ jobs:
 
       - name: Restore
         run: |
-          DB=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          # roles.sql は Supabase の管理用ロールも書き換えるため、使い捨て DB の管理者（supabase_admin）で流す
+          DB=postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres
           psql "$DB" --quiet --single-transaction --variable ON_ERROR_STOP=1 \
             --file restore/roles.sql \
             --file restore/schema.sql \
