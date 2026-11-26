@@ -377,6 +377,8 @@ export async function submitFeedback(content: string, userId: string | null): Pr
     setTimeout(() => reject(new Error('timeout')), 10000)
   )
   await Promise.race([insertPromise, timeoutPromise])
+  // 管理者へのメール通知。失敗してもフィードバックの送信自体は成功として扱う
+  void supabase.functions.invoke('notify-feedback').catch(() => {})
 }
 
 export async function getFeedbackList(): Promise<Feedback[]> {
