@@ -83,9 +83,10 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
   const bookDropdownRef = useRef<HTMLDivElement>(null)
   const bookSearchRef = useRef<HTMLInputElement>(null)
   const today = toLocalDate()
-  const todayBase = sessions.filter(s => s.date === today)
-  const [todaySessions, setTodaySessions] = useState(() => todayBase.length)
-  const [totalMinutes, setTotalMinutes] = useState(() => todayBase.reduce((sum, s) => sum + s.duration, 0))
+  // 今日の実績は親から渡されるセッション一覧から毎回求める（記録すると親の一覧に追加される）
+  const todaySessionList = sessions.filter(s => s.date === today)
+  const todaySessions = todaySessionList.length
+  const totalMinutes = todaySessionList.reduce((sum, s) => sum + s.duration, 0)
   // 実行中のフェーズが終わる時刻（ミリ秒）。止まっている間は null。
   // 1秒ごとに数を減らす方式だと、別タブ表示中やアプリが裏にいる間にタイマーが遅れるため、終了時刻から残りを計算する
   const endAtRef = useRef<number | null>(null)
@@ -118,13 +119,6 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // sessions ロード後に今日の実績を同期
-  useEffect(() => {
-    const todaySess = sessions.filter(s => s.date === today)
-    setTodaySessions(todaySess.length)
-    setTotalMinutes(todaySess.reduce((sum, s) => sum + s.duration, 0))
-  }, [sessions])
-
   // running 変化を親に通知
   useEffect(() => {
     onRunningChange?.(running)
@@ -143,8 +137,6 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
           duration: focusMin,
         }
         onSessionComplete(selectedBookId, newSession)
-        setTodaySessions(prev => prev + 1)
-        setTotalMinutes(prev => prev + focusMin)
       }
       phaseRef.current = 'break'
       setPhase('break')

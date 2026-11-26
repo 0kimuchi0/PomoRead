@@ -109,6 +109,8 @@ export default function TutorialOverlay({ onDone, onTabChange }: Props) {
 
   // タブ遷移後に DOM が更新されるまで少し待ってから位置取得
   useEffect(() => {
+    // 画面上の要素の位置（DOM）を読んで合わせるため、effect の中で更新する
+    // oxlint-disable-next-line react/set-state-in-effect
     if (!current.selector) { setSpotRect(null); return }
     const timer = setTimeout(() => {
       const el = document.querySelector(current.selector!)

@@ -10,7 +10,7 @@
     "android": "npm run build && npx cap sync android",
     "ios": "npm run build && npx cap sync ios",
     "test": "vitest run",
-    "lint": "oxlint src"
+    "lint": "oxlint src --deny-warnings"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.2",

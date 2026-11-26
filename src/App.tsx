@@ -44,6 +44,8 @@ function AppInner() {
 
   useEffect(() => {
     // フォームは SettingsTab が表示し、変更完了時にモードを解除する
+    // パスワード再設定リンク（外部から来るイベント）に合わせてタブを切り替えるため、effect の中で更新する
+    // oxlint-disable-next-line react/set-state-in-effect
     if (passwordRecoveryMode) setTab('settings')
   }, [passwordRecoveryMode])
 
@@ -77,7 +79,7 @@ function AppInner() {
       cleanedUp = true
       handle?.remove()
     }
-  }, [])
+  }, [startPasswordRecovery])
 
   // ローディング完了 & 5秒経過したらフェードアウト開始 → 600ms後に非表示
   useEffect(() => {
@@ -90,6 +92,8 @@ function AppInner() {
   // Load data whenever auth state settles or user changes
   useEffect(() => {
     if (authLoading) return
+    // サーバーからの読み込みの開始を表示する（読み込み自体が外部とのやり取りなので effect の中で行う）
+    // oxlint-disable-next-line react/set-state-in-effect
     setSyncState('syncing')
     const timeout = setTimeout(() => {
       setSyncState('offline')

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
 const isNative = () => (window as any).Capacitor?.isNativePlatform?.() === true
 const isAndroid = () => (window as any).Capacitor?.getPlatform?.() === 'android'
@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [passwordRecoveryMode, setPasswordRecoveryMode] = useState(false)
   const socialLoginInitError = useRef<Error | null>(null)
 
-  const startPasswordRecovery = () => setPasswordRecoveryMode(true)
+  const startPasswordRecovery = useCallback(() => setPasswordRecoveryMode(true), [])
   const clearPasswordRecoveryMode = () => setPasswordRecoveryMode(false)
 
   useEffect(() => {
