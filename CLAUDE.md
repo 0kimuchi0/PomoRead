@@ -45,6 +45,10 @@ PR を作ったら、毎回ラベルとマイルストーンを付ける（`mcp_
   - 承認待ち: PR をマージすると移る（プロジェクトの「Pull request merged」の設定）。master には入ったが、本番にはまだ出ていない
   - 本番反映済み: 本番への反映が承認されると、`deploy.yml` の `project` ジョブが、今回反映した版に含まれる PR を移す（`.github/scripts/move-released-to-done.sh`）。閉じた Issue もここに移る
   - `project` ジョブは GitHub の Secrets の `PROJECT_TOKEN`（プロジェクトを読み書きできるトークン）を使う
+  - ビューは 3 つ: `ボード`（Status の列）・`一覧`（表。Labels・Milestone・Type を表示）・`マイルストーン別`（Board の Swimlanes を Milestone にしたもの。Board の列の分け方は Status しか選べないため）
+  - **Auto-archive items**（プロジェクトの Workflows）をオンにしている。条件は `is:issue,pr is:closed,merged updated:<@today-4w`（閉じた・マージしてから 4 週間たったものを、12 時間ごとに自動でしまう）。しまったものは右上の … → Archived items で見られ、Restore で戻せる
+    - マージしてから 4 週間以上承認しないと、PR が「承認待ち」のまましまわれ、承認しても「本番反映済み」に自動で移らない。そのときは Archived items から Restore する（まだ承認していなければ次の承認で移る。承認済みなら手で「本番反映済み」へ移す）
+    - 2 週間ではなく 4 週間にしているのは、この食い違いを起こしにくくするため
 
 ### Issue の作り方
 
