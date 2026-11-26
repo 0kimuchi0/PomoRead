@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { IconShield, IconUser, IconBan, IconRefresh, IconChartBar, IconBook, IconHistory, IconArrowBackUp, IconBookmark, IconPlus, IconTrash, IconPencil, IconDeviceFloppy, IconX, IconSearch, IconQuestionMark, IconMessage, IconCheck, IconEyeOff, IconBrandGithub } from '@tabler/icons-react'
-import { getAllProfiles, updateUserRole, updateUserBanned, getAllBooksAdmin, getAllSessionsAdmin, logAdminAction, getAdminActions, revertAdminAction, getSuggestBooks, addSuggestBook, updateSuggestBook, updateSuggestStatus, deleteSuggestBook, getFeedbackList, updateFeedbackStatus, createIssueFromFeedback } from '../lib/db'
+import { getAllProfiles, updateUserRole, updateUserBanned, getAllBooksAdmin, getAllSessionsAdmin, logAdminAction, getAdminActions, revertAdminAction, getSuggestBooks, addSuggestBook, updateSuggestBook, updateSuggestStatus, deleteSuggestBook, getFeedbackList, updateFeedbackStatus } from '../lib/db'
 import type { AdminBook, AdminSession } from '../lib/db'
 import { validateBookFields, hasErrors, formatCcode } from '../lib/validate'
 import { formatAuthor } from '../lib/format'
@@ -8,12 +8,12 @@ import type { FieldErrors } from '../lib/validate'
 import { setAdminBooksCache, SUGGEST_BOOKS } from '../suggestBooks'
 import { useAuth } from '../auth/AuthContext'
 import { issueUrl, ISSUE_KINDS } from '../lib/constants'
-import { openAfter } from '../lib/openAfter'
 import type { IssueKind } from '../lib/constants'
 import type { Profile, UserRole, SuggestBookDB, SuggestStatus, Feedback, FeedbackStatus } from '../types'
 import type { AdminAction } from '../types'
 import ConfirmDialog from './ConfirmDialog'
 import HelpModal from './HelpModal'
+import IssueMenu from './IssueMenu'
 import type { HelpItem } from './HelpModal'
 
 const ADMIN_HELP: HelpItem[] = [
@@ -321,33 +321,6 @@ export default function AdminTab() {
     })
   }
 
-  const [creatingIssueId, setCreatingIssueId] = useState<string | null>(null)
-  // フィードバックごとに選んだ Issue の種類（未選択は「機能の要望」）
-  const [issueKinds, setIssueKinds] = useState<Record<string, IssueKind>>({})
-  const issueKindOf = (id: string): IssueKind => issueKinds[id] ?? 'feature'
-
-  const handleCreateIssue = (f: Feedback) => {
-    const kind = issueKindOf(f.id)
-    confirm({
-      message: `このフィードバックを GitHub の Issue（${ISSUE_KINDS[kind].label}）として作成しますか？公開リポジトリに投稿されます。送信者の情報は含めません。`,
-      confirmLabel: '作成する',
-      danger: false,
-      requireReason: false,
-      onConfirm: async () => {
-        setCreatingIssueId(f.id)
-        try {
-          // 作成できたら、その Issue を新しいタブで自動で開く
-          const url = await openAfter(() => createIssueFromFeedback(f.id, kind))
-          setFeedbackList(prev => prev.map(x => x.id === f.id ? { ...x, issueUrl: url } : x))
-        } catch (e) {
-          alert(`Issue を作成できませんでした: ${e instanceof Error ? e.message : String(e)}`)
-        } finally {
-          setCreatingIssueId(null)
-        }
-      },
-    })
-  }
-
   const handleSuggestStatus = async (id: string, status: SuggestStatus) => {
     await updateSuggestStatus(id, status)
     const sb = await getSuggestBooks()
@@ -563,35 +536,7 @@ export default function AdminTab() {
                             <IconBrandGithub size={13} /> Issue {issueNumberLabel(f.issueUrl)} を開く
                           </a>
                         ) : (
-                          <>
-                            <select
-                              className="feedback-issue-kind"
-                              value={issueKindOf(f.id)}
-                              onChange={e => setIssueKinds(prev => ({ ...prev, [f.id]: e.target.value as IssueKind }))}
-                              aria-label="Issue の種類"
-                            >
-                              {(Object.keys(ISSUE_KINDS) as IssueKind[]).map(k => (
-                                <option key={k} value={k}>{ISSUE_KINDS[k].label}</option>
-                              ))}
-                            </select>
-                            <button
-                              className="feedback-issue-btn"
-                              disabled={creatingIssueId === f.id}
-                              onClick={() => handleCreateIssue(f)}
-                              title="このフィードバックを、選んだ種類の GitHub の Issue にする"
-                            >
-                              <IconBrandGithub size={13} /> {creatingIssueId === f.id ? '作成中...' : 'Issue にする'}
-                            </button>
-                            <a
-                              className="feedback-issue-link"
-                              href={feedbackIssueUrl(f.content, issueKindOf(f.id))}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="内容を入れた状態で GitHub の Issue 作成画面を開き、編集してから作成する"
-                            >
-                              編集してから作成
-                            </a>
-                          </>
+                          <IssueMenu formUrl={kind => feedbackIssueUrl(f.content, kind)} />
                         )}
                       </div>
                       <div className="feedback-status-picker">

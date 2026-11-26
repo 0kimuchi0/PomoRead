@@ -50,8 +50,9 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
-      # supabase/functions 以下の Edge Function（例: 管理画面の「Issue にする」）を本番に反映する
+      # supabase/functions 以下の Edge Function を本番に反映する（関数が1つもないときは飛ばす）
       - name: Deploy edge functions
+        if: hashFiles('supabase/functions/**') != ''
         run: supabase functions deploy --use-api --yes
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
