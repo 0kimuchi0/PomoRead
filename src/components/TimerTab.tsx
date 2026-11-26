@@ -243,7 +243,8 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
   }, [running, secondsLeft, totalMs])
 
   const handleStart = () => {
-    if (phase === 'focus' && !selectedBookId && selectableBooks.length > 0) return
+    // 集中は本を選んでから始める（本棚が空のときも始めない。記録先の本がないため）
+    if (phase === 'focus' && !selectedBook) return
     if (phase === 'focus' && selectedBookId) {
       const book = books.find(b => b.id === selectedBookId)
       if (book?.status === 'want') onStatusChange(selectedBookId, 'reading')
@@ -440,8 +441,10 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
             </div>
           )}
         </div>
-        {phase === 'focus' && !selectedBookId && selectableBooks.length > 0 && !running && (
-          <p className="hint">本を選択してからスタートしてください</p>
+        {phase === 'focus' && !selectedBook && !running && (
+          <p className="hint">
+            {selectableBooks.length === 0 ? '本棚に本を追加してからスタートしてください' : '本を選択してからスタートしてください'}
+          </p>
         )}
       </div>
 

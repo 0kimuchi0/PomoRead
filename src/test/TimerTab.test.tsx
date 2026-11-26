@@ -192,3 +192,22 @@ describe('TimerTab の円のゲージ', () => {
     expect(ringOffset()).toBeCloseTo(CIRC, 5)
   })
 })
+
+describe('TimerTab の本の選択', () => {
+  it('本棚に本が 1 冊もなければ、スタートしても集中は始まらず、本の追加を案内する', () => {
+    const onSessionComplete = vi.fn()
+    render(<TimerTab books={[]} sessions={[]} onSessionComplete={onSessionComplete} onStatusChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /スタート/ }))
+    expect(screen.getByRole('button', { name: /スタート/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /一時停止/ })).not.toBeInTheDocument()
+    expect(screen.getByText('本棚に本を追加してからスタートしてください')).toBeInTheDocument()
+  })
+
+  it('読み終わった本しかないときも、スタートできない', () => {
+    const done = { ...book, status: 'done' } as Book
+    render(<TimerTab books={[done]} sessions={[]} onSessionComplete={vi.fn()} onStatusChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /スタート/ }))
+    expect(screen.queryByRole('button', { name: /一時停止/ })).not.toBeInTheDocument()
+    expect(screen.getByText('本棚に本を追加してからスタートしてください')).toBeInTheDocument()
+  })
+})
