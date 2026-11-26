@@ -16,6 +16,7 @@ import {
 } from '@tabler/icons-react'
 import type { Book, Session } from '../types'
 import HelpModal from './HelpModal'
+import { toLocalDate } from '../lib/format'
 
 const TIMER_HELP = [
   {
@@ -80,7 +81,7 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
   const [showSettings, setShowSettings] = useState(false)
   const bookDropdownRef = useRef<HTMLDivElement>(null)
   const bookSearchRef = useRef<HTMLInputElement>(null)
-  const today = new Date().toISOString().slice(0, 10)
+  const today = toLocalDate()
   const todayBase = sessions.filter(s => s.date === today)
   const [todaySessions, setTodaySessions] = useState(() => todayBase.length)
   const [totalMinutes, setTotalMinutes] = useState(() => todayBase.reduce((sum, s) => sum + s.duration, 0))
@@ -145,7 +146,7 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
           id: crypto.randomUUID(),
           bookId: selectedBookId,
           bookTitle: book?.title ?? '',
-          date: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })(),
+          date: toLocalDate(),
           duration: focusMin,
         }
         onSessionComplete(selectedBookId, newSession)

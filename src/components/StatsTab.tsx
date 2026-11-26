@@ -7,6 +7,7 @@ import {
 import { IconQuestionMark, IconLayoutGrid, IconTrendingUp, IconBooks, IconChartPie, IconFlame, IconCalendar, IconRun, IconChartBar, IconSum } from '@tabler/icons-react'
 import type { Book, Session } from '../types'
 import HelpModal from './HelpModal'
+import { toLocalDate } from '../lib/format'
 
 const STATS_HELP = [
   {
@@ -320,10 +321,6 @@ function CustomTooltip({ active, payload, label }: TooltipProps) {
 interface Props {
   books: Book[]
   sessions: Session[]
-}
-
-function toLocalDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 function getLast7Days() {

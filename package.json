@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "android": "npm run build && npx cap sync android",
     "ios": "npm run build && npx cap sync ios",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "oxlint src"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.2",
@@ -39,6 +40,7 @@
     "@vitejs/plugin-react": "^6.0.4",
     "dotenv": "^17.4.2",
     "happy-dom": "^21.0.4",
+    "oxlint": "^1.95.0",
     "path-browserify": "^1.0.1",
     "typescript": "^7.0.2",
     "vite": "^8.1.5",
