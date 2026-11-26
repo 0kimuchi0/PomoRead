@@ -16,3 +16,8 @@ export function formatAuthor(name: string): string {
   }
   return authors.join(', ')
 }
+
+/** 端末のタイムゾーンでの日付を "YYYY-MM-DD" で返す（toISOString は UTC なので日本時間の 0〜9 時に前日になる） */
+export function toLocalDate(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
