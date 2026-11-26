@@ -448,7 +448,8 @@ function getCumulativeData(sessions: Session[]): { label: string; 累計セッ�
 }
 
 function MonthCalendar({ sessions }: { sessions: Session[] }) {
-  const now = new Date()
+  // 表示を開いた時点の日付（描画のたびに時刻を読まない）
+  const [now] = useState(() => new Date())
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth()) // 0-indexed
   const [hoveredDate, setHoveredDate] = useState<string | null>(null)
@@ -461,7 +462,7 @@ function MonthCalendar({ sessions }: { sessions: Session[] }) {
     sessionsByDate.set(s.date, arr)
   })
 
-  const today = toLocalDate(new Date())
+  const today = toLocalDate(now)
 
   const firstDow = new Date(year, month, 1).getDay() // 0=Sun
   const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -555,6 +556,7 @@ function MonthCalendar({ sessions }: { sessions: Session[] }) {
 
 export default function StatsTab({ books, sessions }: Props) {
   const [showHelp, setShowHelp] = useState(false)
+  const [nowMs] = useState(() => Date.now())
   const [windowWidth, setWindowWidth] = useState(() => window.innerWidth)
   useEffect(() => {
     const handler = () => setWindowWidth(window.innerWidth)
@@ -598,7 +600,7 @@ export default function StatsTab({ books, sessions }: Props) {
   const avgMinutesPerDay = activeDays > 0 ? Math.round((totalMinutes / activeDays) * 10) / 10 : 0
   const firstDate = sessions.length > 0 ? sessions.map(s => s.date).sort()[0] : null
   const weeksSinceFirst = firstDate
-    ? Math.max(1, Math.ceil((Date.now() - new Date(firstDate).getTime()) / (7 * 24 * 60 * 60 * 1000)))
+    ? Math.max(1, Math.ceil((nowMs - new Date(firstDate).getTime()) / (7 * 24 * 60 * 60 * 1000)))
     : 1
   const avgSessionsPerWeek = sessions.length > 0 ? Math.round((totalSessions / weeksSinceFirst) * 10) / 10 : 0
   const booksWithSessions = books.filter(b => b.sessions > 0).length

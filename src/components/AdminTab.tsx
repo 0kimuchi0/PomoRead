@@ -121,6 +121,7 @@ export default function AdminTab() {
   const [viewedCount, setViewedCount] = useState(() => Number(localStorage.getItem('admin_history_viewed') ?? 0))
   const [feedbackViewedCount, setFeedbackViewedCount] = useState(() => Number(localStorage.getItem('admin_feedback_viewed') ?? 0))
 
+  const userId = user?.id
   const load = useCallback(async () => {
     if (loadingRef.current) return
     loadingRef.current = true
@@ -133,7 +134,7 @@ export default function AdminTab() {
       setSessions(s)
       setActions(a)
       setSuggestBooks(sb)
-      setAdminBooksCache(sb, user?.id)
+      setAdminBooksCache(sb, userId)
       setFeedbackList(fb)
       setViewedCount(prev => { const v = Math.min(prev, a.length); localStorage.setItem('admin_history_viewed', String(v)); return v })
       setFeedbackViewedCount(prev => { const v = Math.min(prev, fb.length); localStorage.setItem('admin_feedback_viewed', String(v)); return v })
@@ -143,8 +144,10 @@ export default function AdminTab() {
       setLoading(false)
       loadingRef.current = false
     }
-  }, [])
+  }, [userId])
 
+  // 管理データをサーバーから読み込む（外部とのやり取りなので effect から呼ぶ）
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { load() }, [load])
 
   const confirm = (action: PendingAction) => setPending(action)

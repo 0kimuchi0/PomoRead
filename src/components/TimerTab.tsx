@@ -17,6 +17,7 @@ import {
 import type { Book, Session } from '../types'
 import HelpModal from './HelpModal'
 import { toLocalDate } from '../lib/format'
+import { requestTimerNotificationPermission, scheduleTimerNotification, cancelTimerNotification, showTimerNotificationIfHidden } from '../lib/timerNotify'
 
 const TIMER_HELP = [
   {
@@ -82,10 +83,17 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
   const bookDropdownRef = useRef<HTMLDivElement>(null)
   const bookSearchRef = useRef<HTMLInputElement>(null)
   const today = toLocalDate()
-  const todayBase = sessions.filter(s => s.date === today)
-  const [todaySessions, setTodaySessions] = useState(() => todayBase.length)
-  const [totalMinutes, setTotalMinutes] = useState(() => todayBase.reduce((sum, s) => sum + s.duration, 0))
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // 今日の実績は親から渡されるセッション一覧から毎回求める（記録すると親の一覧に追加される）
+  const todaySessionList = sessions.filter(s => s.date === today)
+  const todaySessions = todaySessionList.length
+  const totalMinutes = todaySessionList.reduce((sum, s) => sum + s.duration, 0)
+  // 実行中のフェーズが終わる時刻（ミリ秒）。止まっている間は null。
+  // 1秒ごとに数を減らす方式だと、別タブ表示中やアプリが裏にいる間にタイマーが遅れるため、終了時刻から残りを計算する
+  const endAtRef = useRef<number | null>(null)
+  // 描画を待たずに同じフェーズを二重に終わらせないよう、今のフェーズを ref でも持つ
+  const phaseRef = useRef<Phase>(phase)
+  // 一時停止中の残り時間（ミリ秒）。秒に丸めると、止めるたびに1秒未満ずつずれるため、ミリ秒のまま持つ
+  const pausedMsRef = useRef<number | null>(null)
 
   const selectableBooks = books.filter(b => b.status !== 'done')
   const selectedBook = selectableBooks.find(b => b.id === selectedBookId) ?? null
@@ -111,55 +119,98 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // sessions ロード後に今日の実績を同期
-  useEffect(() => {
-    const todaySess = sessions.filter(s => s.date === today)
-    setTodaySessions(todaySess.length)
-    setTotalMinutes(todaySess.reduce((sum, s) => sum + s.duration, 0))
-  }, [sessions])
-
   // running 変化を親に通知
   useEffect(() => {
     onRunningChange?.(running)
   }, [running, onRunningChange])
 
-  useEffect(() => {
-    if (!running) return
-    intervalRef.current = setInterval(() => {
-      setSecondsLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(intervalRef.current!)
-          handlePhaseEnd()
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-    return () => clearInterval(intervalRef.current!)
-  }, [running, phase])
-
-  const handlePhaseEnd = useCallback(() => {
-    if (phase === 'focus') {
+  // フェーズを切り替え、次のフェーズの終了時刻を返す。endedAt は終わったフェーズの終了時刻
+  const finishPhase = useCallback((endedAt: number) => {
+    if (phaseRef.current === 'focus') {
       if (selectedBookId) {
         const book = books.find(b => b.id === selectedBookId)
         const newSession: Session = {
           id: crypto.randomUUID(),
           bookId: selectedBookId,
           bookTitle: book?.title ?? '',
-          date: toLocalDate(),
+          date: toLocalDate(new Date(endedAt)),
           duration: focusMin,
         }
         onSessionComplete(selectedBookId, newSession)
-        setTodaySessions(prev => prev + 1)
-        setTotalMinutes(prev => prev + focusMin)
       }
+      phaseRef.current = 'break'
       setPhase('break')
       setSecondsLeft(breakMin * 60)
+      endAtRef.current = endedAt + breakMin * 60 * 1000
+      showTimerNotificationIfHidden('focus')
     } else {
+      phaseRef.current = 'focus'
       setPhase('focus')
       setSecondsLeft(focusMin * 60)
+      endAtRef.current = endedAt + focusMin * 60 * 1000
+      showTimerNotificationIfHidden('break')
     }
-  }, [phase, selectedBookId, books, focusMin, breakMin, onSessionComplete])
+    // 次のフェーズの終わりを通知で予約する（アプリのみ）
+    void scheduleTimerNotification(phaseRef.current, endAtRef.current)
+  }, [selectedBookId, books, focusMin, breakMin, onSessionComplete])
+
+  // 画面を離れてタイマーが消えるときは、予約した通知も取り消す
+  useEffect(() => () => { void cancelTimerNotification() }, [])
+
+  // タイマーの更新処理からは常に最新の finishPhase を呼ぶ
+  const finishPhaseRef = useRef(finishPhase)
+  const focusMinRef = useRef(focusMin)
+  useEffect(() => {
+    finishPhaseRef.current = finishPhase
+    focusMinRef.current = focusMin
+  }, [finishPhase, focusMin])
+
+  useEffect(() => {
+    if (!running) return
+    const tick = () => {
+      const endAt = endAtRef.current
+      if (endAt === null) return
+      const left = Math.ceil((endAt - Date.now()) / 1000)
+      if (left > 0) {
+        setSecondsLeft(left)
+        return
+      }
+      finishPhaseRef.current(endAt)
+      const nextEndAt = endAtRef.current
+      if (nextEndAt === null) return
+      const nextLeft = Math.ceil((nextEndAt - Date.now()) / 1000)
+      if (nextLeft > 0) {
+        setSecondsLeft(nextLeft)
+        return
+      }
+      // 次のフェーズまで終わるほど長く離れていたら、自動で続けずに止める（放置中の集中を何回も記録しない）
+      endAtRef.current = null
+      void cancelTimerNotification()
+      phaseRef.current = 'focus'
+      setRunning(false)
+      setPhase('focus')
+      setSecondsLeft(focusMinRef.current * 60)
+    }
+    // 表示の秒が切り替わる瞬間に合わせて次の更新を予約する（一定間隔だと最大で間隔ぶん表示が遅れるため）
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const run = () => {
+      clearTimeout(timer)
+      tick()
+      const endAt = endAtRef.current
+      if (endAt === null) return
+      const msToNextSecond = ((endAt - Date.now()) % 1000 + 1000) % 1000
+      timer = setTimeout(run, msToNextSecond + 10)
+    }
+    run()
+    // 別タブやアプリから戻ったら、すぐに正しい残り時間にする
+    document.addEventListener('visibilitychange', run)
+    window.addEventListener('focus', run)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('visibilitychange', run)
+      window.removeEventListener('focus', run)
+    }
+  }, [running])
 
   const handleStart = () => {
     if (phase === 'focus' && !selectedBookId && selectableBooks.length > 0) return
@@ -167,12 +218,33 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
       const book = books.find(b => b.id === selectedBookId)
       if (book?.status === 'want') onStatusChange(selectedBookId, 'reading')
     }
+    const endAt = Date.now() + (pausedMsRef.current ?? secondsLeft * 1000)
+    pausedMsRef.current = null
+    endAtRef.current = endAt
     setRunning(true)
+    const endingPhase = phase
+    void requestTimerNotificationPermission().then(() => {
+      // 許可を待つ間に一時停止・停止されていたら予約しない
+      if (endAtRef.current === endAt) void scheduleTimerNotification(endingPhase, endAt)
+    })
   }
 
-  const handlePause = () => setRunning(false)
+  const handlePause = () => {
+    if (endAtRef.current !== null) {
+      const ms = Math.max(0, endAtRef.current - Date.now())
+      pausedMsRef.current = ms
+      setSecondsLeft(Math.ceil(ms / 1000))
+    }
+    endAtRef.current = null
+    void cancelTimerNotification()
+    setRunning(false)
+  }
 
   const handleStop = () => {
+    endAtRef.current = null
+    pausedMsRef.current = null
+    void cancelTimerNotification()
+    phaseRef.current = 'focus'
     setRunning(false)
     setPhase('focus')
     setSecondsLeft(focusMin * 60)
@@ -190,6 +262,10 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
     setFocusMin(newFocus)
     setBreakMin(newBreak)
     setShowSettings(false)
+    endAtRef.current = null
+    pausedMsRef.current = null
+    void cancelTimerNotification()
+    phaseRef.current = 'focus'
     setRunning(false)
     setPhase('focus')
     setSecondsLeft(newFocus * 60)

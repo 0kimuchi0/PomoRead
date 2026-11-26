@@ -6,6 +6,8 @@ name: Supabase Backup
 #   1. Actions の実行結果から supabase-backup-<日付> をダウンロードして展開
 #   2. gpg --decrypt --output backup.tar.gz backup.tar.gz.gpg   （パスフレーズを入力）
 #   3. tar -xzf backup.tar.gz  → schema.sql（構造）/ data.sql（データ）/ roles.sql（ロール）
+#   4. 書き戻すときは verify ジョブと同じ順番（roles → schema → data）で psql に流す
+# verify ジョブは毎回、作ったバックアップを使い捨てのデータベースに実際に復元して、取り出せることを確かめる。
 on:
   schedule:
     - cron: '0 15 * * 0' # 毎週月曜 0:00（日本時間）。GitHub の混雑で数分〜数十分遅れることがある
@@ -18,6 +20,8 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      artifact: supabase-backup-${{ steps.encrypt.outputs.date }}
     # シークレットはジョブ全体ではなく、必要なステップにだけ渡す（サードパーティの action から見えないように）
     env:
       PROJECT_REF: ltsdsjrzfvbguissmxxw
@@ -64,6 +68,7 @@ jobs:
           test -s backup/data.sql
 
       - name: Encrypt
+        id: encrypt
         env:
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
         run: |
@@ -75,6 +80,7 @@ jobs:
           # 平文は Artifact に含めない
           rm -rf backup backup.tar.gz
           echo "DATE=$(date -u +%Y%m%d)" >> "$GITHUB_ENV"
+          echo "date=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
 
       - name: Upload encrypted backup
         uses: actions/upload-artifact@v4
@@ -83,3 +89,76 @@ jobs:
           path: backup.tar.gz.gpg
           retention-days: 90
           if-no-files-found: error
+
+  # 作ったバックアップを、このジョブの中だけの使い捨てデータベースに復元して確かめる。
+  # 復元したデータはログにも Artifact にも出さない（件数などの中身も表示しない）
+  verify:
+    needs: backup
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download encrypted backup
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.backup.outputs.artifact }}
+
+      - name: Decrypt
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          gpg --batch --yes --pinentry-mode loopback --passphrase-fd 3 \
+            --decrypt --output backup.tar.gz backup.tar.gz.gpg \
+            3<<<"$BACKUP_PASSPHRASE"
+          mkdir -p restore
+          tar -xzf backup.tar.gz -C restore
+          rm backup.tar.gz
+          ls -l restore
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 3.4.0
+
+      - name: Start empty database
+        run: |
+          mkdir -p scratch && cd scratch
+          supabase init --force
+          supabase db start
+
+      - name: Restore
+        run: |
+          # ログイン情報（auth）などの Supabase 管理のテーブルは、本番と使い捨て DB で版が違い列が合わないことがあるため、
+          # ここではアプリのデータ（public スキーマ）だけを取り出して復元する。バックアップ自体には全部入っている
+          awk '
+            /^COPY / { keep = ($2 ~ /^"?public"?\./); inblock = 1; if (keep) print; next }
+            inblock { if (keep) print; if ($0 == "\\.") inblock = 0; next }
+            /^SELECT pg_catalog\.setval/ { if ($0 ~ /"?public"?\./) print; next }
+            { print }
+          ' restore/data.sql > restore/data-public.sql
+          # roles.sql は Supabase の管理用ロールも書き換えるため、使い捨て DB の管理者（supabase_admin）で流す
+          DB=postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres
+          psql "$DB" --quiet --single-transaction --variable ON_ERROR_STOP=1 \
+            --file restore/roles.sql \
+            --file restore/schema.sql \
+            --command 'SET session_replication_role = replica' \
+            --file restore/data-public.sql > /dev/null
+
+      - name: Check restored data
+        run: |
+          DB=postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres
+          q() { psql "$DB" --tuples-only --no-align --command "$1"; }
+          tables=$(q "select count(*) from pg_tables where schemaname = 'public'")
+          filled=0
+          for t in $(q "select tablename from pg_tables where schemaname = 'public'"); do
+            [ "$(q "select exists (select 1 from public.\"$t\")")" = "t" ] && filled=$((filled + 1))
+          done
+          echo "public のテーブル: ${tables} 個（うちデータのあるもの: ${filled} 個）"
+          test "$tables" -gt 0
+          test "$filled" -gt 0
+          # auth のデータもバックアップに入っていること（中身は見ない）
+          grep -q '^COPY "\?auth"\?\."\?users"\? ' restore/data.sql
+          echo "バックアップから復元できることを確認しました"
+
+      - name: Clean up
+        if: always()
+        run: rm -rf restore backup.tar.gz.gpg
