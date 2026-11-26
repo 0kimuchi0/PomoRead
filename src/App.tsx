@@ -247,9 +247,10 @@ function AppInner() {
       </div>
 
       <main className="app-main">
-        {tab === 'timer' && (
+        {/* タイマーは他のタブを開いている間も動き続けるよう、消さずに隠すだけにする */}
+        <div hidden={tab !== 'timer'}>
           <TimerTab books={books} sessions={sessions} onSessionComplete={handleSessionComplete} onStatusChange={handleStatusChange} onRunningChange={setTimerRunning} />
-        )}
+        </div>
         {tab === 'bookshelf' && (
           <BookshelfTab
             books={books}
