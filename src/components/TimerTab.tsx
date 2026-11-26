@@ -80,6 +80,8 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
   const [secondsLeft, setSecondsLeft] = useState(focusMin * 60)
   const [running, setRunning] = useState(false)
   const [selectedBookId, setSelectedBookId] = useState<string>('')
+  // 本を選ばずにスタートを押したときだけ案内を出す（何もしていないうちに出すとエラーに見えるため）
+  const [showBookHint, setShowBookHint] = useState(false)
   const [showBookDropdown, setShowBookDropdown] = useState(false)
   const [bookSearch, setBookSearch] = useState('')
   const [showSettings, setShowSettings] = useState(false)
@@ -244,7 +246,10 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
 
   const handleStart = () => {
     // 集中は本を選んでから始める（本棚が空のときも始めない。記録先の本がないため）
-    if (phase === 'focus' && !selectedBook) return
+    if (phase === 'focus' && !selectedBook) {
+      setShowBookHint(true)
+      return
+    }
     if (phase === 'focus' && selectedBookId) {
       const book = books.find(b => b.id === selectedBookId)
       if (book?.status === 'want') onStatusChange(selectedBookId, 'reading')
@@ -424,7 +429,7 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
                         <button
                           key={b.id}
                           className={`book-select-option${b.id === selectedBookId ? ' selected' : ''}`}
-                          onClick={() => { setSelectedBookId(b.id); setShowBookDropdown(false); setBookSearch('') }}
+                          onClick={() => { setSelectedBookId(b.id); setShowBookHint(false); setShowBookDropdown(false); setBookSearch('') }}
                         >
                           <span className={`book-status-dot status-${b.status}`} />
                           <span className="book-option-title">{b.title}</span>
@@ -441,7 +446,7 @@ export default function TimerTab({ books, sessions, onSessionComplete, onStatusC
             </div>
           )}
         </div>
-        {phase === 'focus' && !selectedBook && !running && (
+        {showBookHint && phase === 'focus' && !selectedBook && !running && (
           <p className="hint">
             {selectableBooks.length === 0 ? '本棚に本を追加してからスタートしてください' : '本を選択してからスタートしてください'}
           </p>

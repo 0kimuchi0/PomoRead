@@ -197,6 +197,8 @@ describe('TimerTab の本の選択', () => {
   it('本棚に本が 1 冊もなければ、スタートしても集中は始まらず、本の追加を案内する', () => {
     const onSessionComplete = vi.fn()
     render(<TimerTab books={[]} sessions={[]} onSessionComplete={onSessionComplete} onStatusChange={vi.fn()} />)
+    // 何も操作していないうちは、案内を出さない（エラーに見えるため）
+    expect(screen.queryByText('本棚に本を追加してからスタートしてください')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /スタート/ }))
     expect(screen.getByRole('button', { name: /スタート/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /一時停止/ })).not.toBeInTheDocument()
@@ -209,5 +211,16 @@ describe('TimerTab の本の選択', () => {
     fireEvent.click(screen.getByRole('button', { name: /スタート/ }))
     expect(screen.queryByRole('button', { name: /一時停止/ })).not.toBeInTheDocument()
     expect(screen.getByText('本棚に本を追加してからスタートしてください')).toBeInTheDocument()
+  })
+
+  it('本を選ばずにスタートを押したときだけ案内を出し、本を選ぶと消える', () => {
+    render(<TimerTab books={[book]} sessions={[]} onSessionComplete={vi.fn()} onStatusChange={vi.fn()} />)
+    expect(screen.queryByText('本を選択してからスタートしてください')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /スタート/ }))
+    expect(screen.queryByRole('button', { name: /一時停止/ })).not.toBeInTheDocument()
+    expect(screen.getByText('本を選択してからスタートしてください')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /本を選択/ }))
+    fireEvent.click(screen.getByRole('button', { name: /テスト本/ }))
+    expect(screen.queryByText('本を選択してからスタートしてください')).not.toBeInTheDocument()
   })
 })
