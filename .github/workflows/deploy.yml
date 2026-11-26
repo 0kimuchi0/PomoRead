@@ -7,7 +7,8 @@ on:
       - main
 
 # 本番に反映する前に、利用者の承認を待つ。
-#   1. preview: master の版をプレビューとして公開し、アドレスを表示する（本番には出ない）
+#   1. preview: master の版をプレビューとして公開し、決まったアドレス staging.pomoread.com にも付け替える（本番には出ない）。
+#      マージした PR に、プレビューと承認・却下の画面のリンクをコメントする
 #   2. approve: GitHub の Environment「production」の承認を待つ（承認者を設定しておく）
 #   3. migrate → deploy: 承認されたら、データベースと pomoread.com に反映する
 #   4. ios: 承認したコミットにタグ release-<番号> を付け、そのタグで Codemagic の iOS ビルドを始める（TestFlight に配信される）
@@ -15,6 +16,9 @@ on:
 jobs:
   preview:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 
@@ -37,7 +41,7 @@ jobs:
           {
             echo "## 本番に出す前のプレビュー"
             echo ""
-            echo "$url"
+            echo "https://$STAGING_HOST （この版のアドレス: $url）"
             echo ""
             echo "動きを確かめてから、この実行の画面で「Review deployments」→「production」を承認すると、データベースと pomoread.com に反映されます。"
             echo "プレビューも本番と同じデータベースを使うので、データを書き換える操作は本番のデータに入ります。"
@@ -46,6 +50,38 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: team_99DGzyn9jugmw331mbDew6U6
           VERCEL_PROJECT_ID: prj_y3mFSxJLjiNKJcxGSKt4k9i7NyFD
+          STAGING_HOST: staging.pomoread.com
+
+      # 承認待ちの最新の版を、いつも同じアドレスで確かめられるようにする
+      - name: Point staging.pomoread.com to the preview
+        run: npx vercel alias set "$URL" "$STAGING_HOST" --token="$VERCEL_TOKEN" --scope=0daiki0-projects
+        env:
+          URL: ${{ steps.preview.outputs.url }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          STAGING_HOST: staging.pomoread.com
+
+      # マージした PR に確認用のリンクを書き込む（通知からそのまま開けるように）
+      - name: Comment links on the merged PR
+        run: |
+          pr=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq '.[0].number // empty')
+          if [ -z "$pr" ]; then
+            echo "このコミットに対応する PR が見つからないので、コメントはしない"
+            exit 0
+          fi
+          gh pr comment "$pr" --repo "$GITHUB_REPOSITORY" --body "$(cat <<BODY
+          本番に出す前のプレビューができました。承認するまで本番（pomoread.com・データベース・TestFlight）には反映されません。
+
+          - プレビュー: https://$STAGING_HOST （この版だけのアドレス: $URL）
+          - 承認・却下: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+            - 「Review deployments」→「Production」→「Approve and deploy」または「Reject」
+
+          プレビューも本番と同じデータベースを使います。データを書き換える操作は本番のデータに入ります。
+          BODY
+          )"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          URL: ${{ steps.preview.outputs.url }}
+          STAGING_HOST: staging.pomoread.com
 
   approve:
     runs-on: ubuntu-latest
