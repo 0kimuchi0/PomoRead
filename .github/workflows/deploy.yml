@@ -12,6 +12,7 @@ on:
 #   2. approve: GitHub の Environment「production」の承認を待つ（承認者を設定しておく）
 #   3. migrate → deploy: 承認されたら、データベースと pomoread.com に反映する
 #   4. ios: 承認したコミットにタグ release-<番号> を付け、そのタグで Codemagic の iOS ビルドを始める（TestFlight に配信される）
+#   5. project: GitHub Projects「PomoRead」の「承認待ち」にある PR のうち、今回反映したものを「本番反映済み」に移す
 # master への Vercel の自動公開は vercel.json で止めてあり、本番に出るのはこの流れだけ
 jobs:
   preview:
@@ -209,3 +210,26 @@ jobs:
           CODEMAGIC_API_TOKEN: ${{ secrets.CODEMAGIC_API_TOKEN }}
           CODEMAGIC_APP_ID: 6a0da308c772daab0da9b121
           TAG: ${{ steps.tag.outputs.tag }}
+
+  project:
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 「今回反映したコミットに含まれる PR か」を調べるため、履歴をすべて取る
+          fetch-depth: 0
+
+      - name: Move released PRs to 本番反映済み
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::PROJECT_TOKEN secret is not set. プロジェクトの列は移さない"
+            exit 0
+          fi
+          .github/scripts/move-released-to-done.sh
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          RELEASED_SHA: ${{ github.sha }}
+          PROJECT_OWNER: daiki0828
+          PROJECT_TITLE: PomoRead
+          REPOSITORY: ${{ github.repository }}
