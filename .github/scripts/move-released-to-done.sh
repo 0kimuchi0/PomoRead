@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 本番への反映が承認されたあと、GitHub Projects「PomoRead」の「承認待ち」にある PR のうち、
-# 今回反映したコミット（RELEASED_SHA）に含まれているものを「Done」に移す。
+# 今回反映したコミット（RELEASED_SHA）に含まれているものを「本番反映済み」に移す。
 # 承認を待つ間にマージされた別の PR は、まだ本番に出ていないので「承認待ち」のまま残す。
 #
 # 必要な環境変数:
@@ -12,7 +12,7 @@
 set -euo pipefail
 
 WAITING="承認待ち"
-DONE="Done"
+DONE="本番反映済み"
 
 project=$(gh api graphql -f owner="$PROJECT_OWNER" -f q="$PROJECT_TITLE" -f query='
   query($owner: String!, $q: String!) {
