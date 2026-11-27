@@ -19,6 +19,9 @@
 5. マージすると、`deploy.yml` が master の版を**プレビュー**として公開し、本番の前で止まる
    - プレビューは、いつも同じアドレス **https://staging.pomoread.com** で開ける（承認待ちの最新の版が出る）
    - マージした PR には、まず承認・却下の画面のリンクが数秒でコメントされ、プレビューができると（30 秒ほど）同じコメントにプレビューのアドレスが書き足される。Claude もアドレスを知らせる
+   - マージした PR には、ラベル **`承認待ち`** が自動で付く。承認して本番に反映されると、`本番反映済み` に自動で付け替わる（`deploy.yml` の `labels` ジョブ、`.github/scripts/relabel-released.sh`）
+     - 承認待ちの PR の一覧: Pull requests タブで `is:pr is:merged label:承認待ち` と絞り込む（https://github.com/daiki0828/PomoRead/pulls?q=is%3Apr+is%3Amerged+label%3A%E6%89%BF%E8%AA%8D%E5%BE%85%E3%81%A1）
+     - 却下（Reject）した版の PR は `承認待ち` のまま残り、次に承認した版に含まれた時点で付け替わる（master に入ったままなので、次の承認で一緒に本番に出るため）
    - `staging.pomoread.com` は独自ドメインなので Vercel のログインなしで誰でも開ける。検索サイトには載らないようにしてある（`vercel.json` の `X-Robots-Tag`）
    - Google ログインは、Supabase に登録したアドレスでしか戻れないので、プレビューではメールでのログインを使う
 6. 利用者がプレビューを確かめて、Actions の画面（または GitHub Mobile アプリの通知）の「Review deployments」で **production** を承認すると、データベース（マイグレーション・Edge Function）と pomoread.com に反映され、そのあと Codemagic の iOS ビルドが始まる
@@ -34,6 +37,7 @@ PR を作ったら、毎回ラベルとマイルストーンを付ける（`mcp_
   - 不具合の修正 → `fix`、機能追加 → `feature`、仕様の変更 → `spec-change`
   - 画面 → `screen`、見た目 → `design`、CI・デプロイ → `ci-cd`、文書 → `documentation`
   - リファクタリング → `refactor`、テスト → `test`、開発環境・パッケージ → `setup`
+  - `承認待ち`・`本番反映済み` は `deploy.yml` が自動で付け外しするので、Claude は付けない
 - **マイルストーン**: 次の 3 つから選ぶ。どれにも当てはまらないアプリの改善や不具合の修正も「保守・運用」に入れる
   - `Android 版の配信`（番号 1）: Google Play で配信するまで
   - `App Store 公開`（番号 2）: TestFlight から App Store で一般公開するまで
