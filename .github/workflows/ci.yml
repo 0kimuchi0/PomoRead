@@ -1,13 +1,17 @@
 name: Run Tests
 permissions:
   contents: read
-  pull-requests: write
 
 on:
   push:
     branches: [ "master" ]
   pull_request:
     branches: [ "master" ]
+
+# 同じ PR に新しい push があったら、古い方の実行は止める（結果を待つ意味がないため）
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -22,7 +26,16 @@ jobs:
         node-version: '24'
         cache: 'npm'
 
+    # node_modules を丸ごと取っておき、package-lock.json が同じなら npm ci を飛ばす（約 10 秒の短縮）
+    - name: Restore node_modules
+      id: modules
+      uses: actions/cache@v4
+      with:
+        path: node_modules
+        key: node-modules-${{ runner.os }}-node24-${{ hashFiles('package-lock.json') }}
+
     - name: Install dependencies
+      if: steps.modules.outputs.cache-hit != 'true'
       run: npm ci
 
     - name: Type check
