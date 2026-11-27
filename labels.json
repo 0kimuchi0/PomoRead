@@ -24,7 +24,9 @@
       "category": "PR",
       "labels": [
         { "name": "fix", "color": "d73a4a", "description": "不具合修正のPR" },
-        { "name": "wip", "color": "fbca04", "description": "作業中・レビュー未依頼" }
+        { "name": "wip", "color": "fbca04", "description": "作業中・レビュー未依頼" },
+        { "name": "承認待ち", "color": "e99695", "description": "マージ済み。本番への反映の承認を待っている（deploy.yml が自動で付け外しする）" },
+        { "name": "本番反映済み", "color": "0e8a16", "description": "本番に反映された（deploy.yml が承認後に自動で付ける）" }
       ]
     },
     {

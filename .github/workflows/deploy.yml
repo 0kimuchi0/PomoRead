@@ -7,19 +7,21 @@ on:
       - main
 
 # 本番に反映する前に、利用者の承認を待つ。
-#   1. notify: マージした PR に、すぐ承認・却下の画面のリンクをコメントする（プレビューを待たずに知らせる）
+#   1. notify: マージした PR に、すぐ承認・却下の画面のリンクをコメントし、ラベル「承認待ち」を付ける（プレビューを待たずに知らせる）
 #   2. preview: master の版をプレビューとして公開し、決まったアドレス staging.pomoread.com にも付け替える（本番には出ない）。
 #      できたら、1 のコメントにプレビューのアドレスを書き足す
 #   3. approve: GitHub の Environment「production」の承認を待つ（承認者を設定しておく）
 #   4. migrate → deploy: 承認されたら、データベースと pomoread.com に反映する
 #   5. ios: 承認したコミットにタグ release-<番号> を付け、そのタグで Codemagic の iOS ビルドを始める（TestFlight に配信される）
 #   6. project: GitHub Projects「PomoRead」の「承認待ち」にある PR のうち、今回反映したものを「本番反映済み」に移す
+#   7. labels: ラベル「承認待ち」の PR のうち、今回反映したものを、ラベル「本番反映済み」に付け替える
 # master への Vercel の自動公開は vercel.json で止めてあり、本番に出るのはこの流れだけ
 jobs:
   notify:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: write
       pull-requests: write
     outputs:
       pr: ${{ steps.comment.outputs.pr }}
@@ -46,6 +48,8 @@ jobs:
           BODY
           )
           comment_id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$pr/comments" -f body="$body" --jq '.id')
+          # PR の一覧で、承認待ちのものを絞り込めるようにする（承認後に labels ジョブが「本番反映済み」に付け替える）
+          gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$pr/labels" -f "labels[]=承認待ち" >/dev/null
           echo "pr=$pr" >> "$GITHUB_OUTPUT"
           echo "comment_id=$comment_id" >> "$GITHUB_OUTPUT"
         env:
@@ -257,4 +261,24 @@ jobs:
           RELEASED_SHA: ${{ github.sha }}
           PROJECT_OWNER: daiki0828
           PROJECT_TITLE: PomoRead
+          REPOSITORY: ${{ github.repository }}
+
+  labels:
+    runs-on: ubuntu-latest
+    needs: deploy
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 「今回反映したコミットに含まれる PR か」を調べるため、履歴をすべて取る
+          fetch-depth: 0
+
+      - name: Relabel released PRs to 本番反映済み
+        run: .github/scripts/relabel-released.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASED_SHA: ${{ github.sha }}
           REPOSITORY: ${{ github.repository }}
