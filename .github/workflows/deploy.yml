@@ -7,37 +7,64 @@ on:
       - main
 
 # 本番に反映する前に、利用者の承認を待つ。
-#   1. preview: master の版をプレビューとして公開し、決まったアドレス staging.pomoread.com にも付け替える（本番には出ない）。
-#      マージした PR に、プレビューと承認・却下の画面のリンクをコメントする
-#   2. approve: GitHub の Environment「production」の承認を待つ（承認者を設定しておく）
-#   3. migrate → deploy: 承認されたら、データベースと pomoread.com に反映する
-#   4. ios: 承認したコミットにタグ release-<番号> を付け、そのタグで Codemagic の iOS ビルドを始める（TestFlight に配信される）
-#   5. project: GitHub Projects「PomoRead」の「承認待ち」にある PR のうち、今回反映したものを「本番反映済み」に移す
+#   1. notify: マージした PR に、すぐ承認・却下の画面のリンクをコメントする（プレビューを待たずに知らせる）
+#   2. preview: master の版をプレビューとして公開し、決まったアドレス staging.pomoread.com にも付け替える（本番には出ない）。
+#      できたら、1 のコメントにプレビューのアドレスを書き足す
+#   3. approve: GitHub の Environment「production」の承認を待つ（承認者を設定しておく）
+#   4. migrate → deploy: 承認されたら、データベースと pomoread.com に反映する
+#   5. ios: 承認したコミットにタグ release-<番号> を付け、そのタグで Codemagic の iOS ビルドを始める（TestFlight に配信される）
+#   6. project: GitHub Projects「PomoRead」の「承認待ち」にある PR のうち、今回反映したものを「本番反映済み」に移す
 # master への Vercel の自動公開は vercel.json で止めてあり、本番に出るのはこの流れだけ
 jobs:
-  preview:
+  notify:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
+    outputs:
+      pr: ${{ steps.comment.outputs.pr }}
+      comment_id: ${{ steps.comment.outputs.comment_id }}
     steps:
+      # マージした PR に確認用のリンクを書き込む（通知からそのまま開けるように）。
+      # checkout などの準備がいらないので、マージして数秒で付く
+      - name: Comment approval link on the merged PR
+        id: comment
+        run: |
+          pr=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq '.[0].number // empty')
+          if [ -z "$pr" ]; then
+            echo "このコミットに対応する PR が見つからないので、コメントはしない"
+            exit 0
+          fi
+          body=$(cat <<BODY
+          master にマージされました。承認するまで本番（pomoread.com・データベース・TestFlight）には反映されません。
+
+          - プレビュー: 作っています（30 秒ほどでできます。できたら、ここにアドレスが出ます）
+          - 承認・却下: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+            - プレビューができると「Review deployments」が出ます →「Production」→「Approve and deploy」または「Reject」
+
+          プレビューも本番と同じデータベースを使います。データを書き換える操作は本番のデータに入ります。
+          BODY
+          )
+          comment_id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$pr/comments" -f body="$body" --jq '.id')
+          echo "pr=$pr" >> "$GITHUB_OUTPUT"
+          echo "comment_id=$comment_id" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  preview:
+    runs-on: ubuntu-latest
+    needs: notify
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      # ビルドは Vercel の側で行うので、ここでは npm ci やビルドをしない（二重になるため）
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
 
       - name: Deploy preview to Vercel
         id: preview
         run: |
-          url=$(npx vercel deploy --token="$VERCEL_TOKEN" --yes)
+          url=$(npx --yes vercel deploy --token="$VERCEL_TOKEN" --yes)
           echo "url=$url" >> "$GITHUB_OUTPUT"
           {
             echo "## 本番に出す前のプレビュー"
@@ -55,21 +82,17 @@ jobs:
 
       # 承認待ちの最新の版を、いつも同じアドレスで確かめられるようにする
       - name: Point staging.pomoread.com to the preview
-        run: npx vercel alias set "$URL" "$STAGING_HOST" --token="$VERCEL_TOKEN" --scope=0daiki0-projects
+        run: npx --yes vercel alias set "$URL" "$STAGING_HOST" --token="$VERCEL_TOKEN" --scope=0daiki0-projects
         env:
           URL: ${{ steps.preview.outputs.url }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           STAGING_HOST: staging.pomoread.com
 
-      # マージした PR に確認用のリンクを書き込む（通知からそのまま開けるように）
-      - name: Comment links on the merged PR
+      # notify のコメントを、プレビューのアドレス入りに書き換える
+      - name: Add the preview link to the comment
+        if: needs.notify.outputs.comment_id != ''
         run: |
-          pr=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq '.[0].number // empty')
-          if [ -z "$pr" ]; then
-            echo "このコミットに対応する PR が見つからないので、コメントはしない"
-            exit 0
-          fi
-          gh pr comment "$pr" --repo "$GITHUB_REPOSITORY" --body "$(cat <<BODY
+          body=$(cat <<BODY
           本番に出す前のプレビューができました。承認するまで本番（pomoread.com・データベース・TestFlight）には反映されません。
 
           - プレビュー: https://$STAGING_HOST （この版だけのアドレス: $URL）
@@ -78,9 +101,11 @@ jobs:
 
           プレビューも本番と同じデータベースを使います。データを書き換える操作は本番のデータに入ります。
           BODY
-          )"
+          )
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" -f body="$body" >/dev/null
         env:
           GH_TOKEN: ${{ github.token }}
+          COMMENT_ID: ${{ needs.notify.outputs.comment_id }}
           URL: ${{ steps.preview.outputs.url }}
           STAGING_HOST: staging.pomoread.com
 
